@@ -1,0 +1,31 @@
+.input-container {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+    margin: 5px 4%;
+}
+
+.input-container input {
+    border-radius: 3px;
+}
+
+#ll-submit-grading, #ll-submit-attempted {
+    width: 168px;
+}
+
+
+.float-right {
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: flex-end;
+
+}
+
+#ll-submit-attempted {
+    margin: 20px 4% 5px 4%;
+}
+
+.ll-warning {
+    text-align: center;
+    color: red;
+}
