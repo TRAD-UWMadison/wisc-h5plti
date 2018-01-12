@@ -30,6 +30,9 @@ class WISC_LL_STATEMENTS{
         add_action('add_meta_boxes', array(__CLASS__,'wisc_h5plti_addStatementMetabox'));
 //        add_action('h5p_additional_scripts', array(__CLASS__, 'h5p_embed_additional_scripts'), 10, 1);
 
+        // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
+        // script will allow h5p embedding within Hypothesis annotations.
+        wp_enqueue_script('hypothosis-core.js', "https://hypothesis-h5p.s3.us-east-2.amazonaws.com/boot.js");
     }
 
 //    function h5p_embed_additional_scripts(&$additional_scripts) {
