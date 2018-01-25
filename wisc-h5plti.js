@@ -14,8 +14,18 @@
     var completedVerb = "http%3A%2F%2Fadlnet.gov%2Fexpapi%2Fverbs%2Fcompleted";
     var answeredVerb = "http%3A%2F%2Fadlnet.gov%2Fexpapi%2Fverbs%2Fanswered";
     var activityURL = "";
+    
+    var $since,
+        $until;
 
     $(document).ready(function() {
+        
+        $since = $("#chapter_grade_sync_fields\\[since\\]");
+        $until = $("#chapter_grade_sync_fields\\[until\\]");
+
+        console.debug($since);
+
+        
         endpoint = $("#ll-submit-endpoint").val();
         activityURL = $("#ll-submit-activity").val();
         var authEncode = $("#ll-submit-auth").val();
@@ -33,11 +43,12 @@
         // var requestPassedStatments = endpoint + "statements?verb=http%3A%2F%2Fadlnet.gov%2Fexpapi%2Fverbs%2Fpassed&activity=" + activity + "&limit=500&format=exact";
         // var requestCompletedStatements = endpoint + "statements?verb=http%3A%2F%2Fadlnet.gov%2Fexpapi%2Fverbs%2Fcompleted&activity=" + activity
 
-        $("#since").on("change", function () {
+        $since.on("change", function () {
             sinceDate = new Date($(this).val());
+            console.debug(sinceDate);
         });
 
-        $("#until").on("change", function () {
+        $until.on("change", function () {
             untilDate = new Date($(this).val());
         });
 

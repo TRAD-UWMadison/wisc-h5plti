@@ -29,6 +29,10 @@ $questions = array();
 $maxTotalGrade = 0;
 
 foreach ($statements as $statement){
+    // Abort if the statement doesn't contain results.
+    if (!key_exists('result', $statement)) {
+        continue;
+    }
     $info = new stdClass();
     $info->timestamp = $statement['timestamp'];
     $info->score = $statement['result']['score']['scaled'];
