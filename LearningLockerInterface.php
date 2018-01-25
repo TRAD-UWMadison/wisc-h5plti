@@ -68,16 +68,16 @@ class LearningLockerInterface {
         }
         return $activity_url_prefix;
     }
-    
+
     /**
-     * @param int $blog_id
-     * @param string $verb
-     * @param array $ids
-     * @param null|DateTime $since
-     * @param null|DateTime $until
+     * @param $blog_id
+     * @param $h5p_ids
+     * @param null $since
+     * @param null $until
+     * @return array|void
      * @throws ErrorException
      */
-    public static function get_h5p_info($blog_id, $ids, $since = null, $until = null) {
+    public static function get_h5p_statements($blog_id, $h5p_ids, $since = null, $until = null) {
 
         switch_to_blog($blog_id);
         try {
@@ -106,24 +106,20 @@ class LearningLockerInterface {
         $until_arg = self::get_until_arg($until);
         $all_statements = array();
         try {
-            foreach($ids as $id) {
-                $request_url = self::get_request_url(self::VERB_COMPLETED, $id, $since_arg, $until_arg);
-                self::get_h5p_info_helper($request_url, $more_base_url, $curl_options, $all_statements);
-                $request_url = self::get_request_url(self::VERB_ANSWERED, $id, $since_arg, $until_arg);
-                self::get_h5p_info_helper($request_url, $more_base_url, $curl_options, $all_statements);
+            foreach($h5p_ids as $h5p_id) {
+                $request_url = self::get_request_url(self::VERB_COMPLETED, $h5p_id, $since_arg, $until_arg);
+                self::get_h5p_statements_helper($request_url, $more_base_url, $curl_options, $all_statements);
+                $request_url = self::get_request_url(self::VERB_ANSWERED, $h5p_id, $since_arg, $until_arg);
+                self::get_h5p_statements_helper($request_url, $more_base_url, $curl_options, $all_statements);
             }    
         } catch (ErrorException $e) {
             // todo: react somehow
         }
         
-        
-        
-
-        // todo: switch back to blog?
-
+        return $all_statements;
     }
     
-    private static function get_h5p_info_helper($request_url, $more_base_url, $curl_options, &$statements) {
+    private static function get_h5p_statements_helper($request_url, $more_base_url, $curl_options, &$statements) {
         $response = self::curl_request($request_url, $curl_options);
         if ($response === FALSE) {
             // todo: error reporting
@@ -136,7 +132,7 @@ class LearningLockerInterface {
             $statements = array_merge($statements, $response_object->statements);
             if (property_exists($response_object, 'more') && !empty($response_object->more)) {
                 $more_url = $more_base_url . $response_object->more;
-                self::get_h5p_info_helper($more_url, $more_base_url, $curl_options, $statements);
+                self::get_h5p_statements_helper($more_url, $more_base_url, $curl_options, $statements);
             }
         }
     }
@@ -181,16 +177,12 @@ class LearningLockerInterface {
         return $data;
     }
     
-    private static function process_xapi_statements($data) {
-        $s=json_decode(stripslashes($data),TRUE);
-        $blogid = $s['blog'];
-        $postid = $s['post'];
-        $gradingScheme = $s['grading'];
-        $userData = array();
-        $statements = $s['statements'];
-
+    private static function process_xapi_statements($statements, $blog_id, $post_id, $grading_scheme) {
+        
+        $user_data = array();
         $questions = array();
-        $maxTotalGrade = 0;
+        $max_total_grade = 0;
+        $return_object = new stdClass();
 
         foreach ($statements as $statement){
             // Abort if the statement doesn't contain results.
@@ -207,7 +199,7 @@ class LearningLockerInterface {
                 if (is_null($info->score)){
                     $info->score = floatval($statement['result']['score']['raw'])/floatval($statement['result']['score']['max']);
                 }
-                $userData[$statement['actor']['name']][$statement['object']['id']][] = $info;
+                $user_data[$statement['actor']['name']][$statement['object']['id']][] = $info;
                 $questions[$statement['object']['id']] = new stdClass();
                 $questions[$statement['object']['id']]->maxScore = $info->maxScore;
                 $questions[$statement['object']['id']]->title = $statement['object']['definition']['name']['en-US'];
@@ -215,63 +207,58 @@ class LearningLockerInterface {
         }
 
         foreach($questions as $question){
-            $maxTotalGrade += $question->maxScore;
+            $max_total_grade += $question->maxScore;
         }
 
         if (sizeof($questions) == 0){
-            $return = new stdClass();
-            $return->error = "No statements found";
-            echo json_encode($return);
-            exit;
+            $return_object->error = "No statements found";
+            return $return_object;
         }
 
 
-        if ($maxTotalGrade == 0){
-            $return = new stdClass();
-            $return->error = "No scores found";
-            $return->questions = $questions;
-            echo json_encode($return);
-            exit;
+        if ($max_total_grade == 0){
+            $return_object->error = "No scores found";
+            $return_object->questions = $questions;
+            return $return_object;
         }
 
-        foreach($userData as $user => $info) {
+        foreach($user_data as $user => $info) {
             $userScore = 0;
             $userId = get_user_by("login", $user);
 
             foreach($info as $object => $object_statements){
-                usort($userData[$user][$object], function ($a, $b) {
+                usort($user_data[$user][$object], function ($a, $b) {
                     return strtotime($a->timestamp) - strtotime($b->timestamp);
                 });
 
                 $target = null;
-                if ($gradingScheme == 'first'){
-                    $target = reset($userData[$user][$object]);
-                } else if ($gradingScheme == 'last'){
-                    $target = end($userData[$user][$object]);
+                if ($grading_scheme == 'first'){
+                    $target = reset($user_data[$user][$object]);
+                } else if ($grading_scheme == 'last'){
+                    $target = end($user_data[$user][$object]);
                 } else { // Best
-                    foreach ($userData[$user][$object] as $statement){
+                    foreach ($user_data[$user][$object] as $statement){
                         if (is_null($target) || floatval($target->rawScore) < floatval($statement->rawScore)){
                             $target = $statement;
                         }
                     }
                 }
                 $userScore += $target->rawScore;
-                $userData[$user][$object]['target'] = $target;
+                $user_data[$user][$object]['target'] = $target;
             }
 
-            $userData[$user]['totalScore'] = $userScore;
-            $percentScore =  floatval($userScore/$maxTotalGrade);
-            $userData[$user]['percentScore'] = $percentScore;
-            do_action('lti_outcome', $percentScore , $userId->ID, $postid, $blogid);
+            $user_data[$user]['totalScore'] = $userScore;
+            $percentScore =  floatval($userScore/$max_total_grade);
+            $user_data[$user]['percentScore'] = $percentScore;
+            do_action('lti_outcome', $percentScore , $userId->ID, $post_id, $blog_id);
             // usleep(500000);
 
         }
 
-        $return = new stdClass();
-        $return->maxGrade = $maxTotalGrade;
-        $return->userData = $userData;
-        $return->questions = $questions;
-        return json_encode($return);
+        $return_object->maxGrade = $max_total_grade;
+        $return_object->userData = $user_data;
+        $return_object->questions = $questions;
+        return $return_object;
     }
     
 }

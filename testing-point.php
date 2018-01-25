@@ -16,7 +16,7 @@ function getWpLoadPath() {
 
 require_once getWpLoadPath();
 
-LearningLockerInterface::get_h5p_info(
+LearningLockerInterface::get_h5p_statements(
     3,
     array(4),
     new DateTime("2017-11-01"), new DateTime("2018-01-23"));

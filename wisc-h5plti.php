@@ -25,44 +25,10 @@ class WiscH5PLTI {
     const ERROR_NOT_CONFIGURED = 'ERROR_NOT_CONFIGURED';
 
     private static $learning_locker_settings = array();
-    /**
-     * @param integer|null $blog_id
-     * @return array
-     * @throws ErrorException
-     */
-    public static function get_learning_locker_settings($blog_id = null) {
-        $current_blog_id = get_current_blog_id();
-        if (is_null($blog_id)) {
-            $blog_id = $current_blog_id;
-        }
-        $settings_blog_id = $current_blog_id;
-        $blog_switch_flag = false;
-        if ($blog_id != $settings_blog_id) {
-            $settings_blog_id = $blog_id;
-            $blog_switch_flag = true;
-        }
-        if (is_null(self::$learning_locker_settings[$settings_blog_id])) {
-            if ($blog_switch_flag) {
-                switch_to_blog($settings_blog_id);
-            }
-            $settings = h5pxapi_get_auth_settings();
-            if (!is_array($settings) ||
-                !key_exists('endpoint_url', $settings) || empty($settings['endpoint_url']) ||
-                !key_exists('username', $settings) || empty($settings['username']) ||
-                !key_exists('password', $settings) || empty($settings['password'])) {
-                throw new ErrorException(WiscH5PLTI::ERROR_NOT_CONFIGURED);
-            }
-            // Ensure a trailing '/'
-            if (substr($settings['endpoint_url'], -1) != '/') {
-                $settings['endpoint_url'] .= '/';
-            }
-            self::$learning_locker_settings[$settings_blog_id] = $settings;
-            if ($blog_switch_flag) {
-                switch_to_blog($current_blog_id);
-            }
-        }
-        return self::$learning_locker_settings[$settings_blog_id];
-    }
+
+
+    // WordPress Related -----------------------------------------------------------------------------------------------
+
 
     public static function setup(){
         add_action('init', array(__CLASS__, 'delayed_init'));
@@ -100,7 +66,7 @@ class WiscH5PLTI {
 //        switch_to_blog($current_blog);
 //        $post_id = get_the_ID();
 
-        $settings = h5pxapi_get_auth_settings();
+        $settings = h5pxapi_get_auth_settings(); // todo - use helper
 
 //        $endpoint = $settings["endpoint_url"];
 //        $auth_user = $settings["username"];
@@ -194,4 +160,49 @@ class WiscH5PLTI {
             delete_post_meta( $post_id, 'chapter_grade_sync_fields', $old );
         }
     }
+
+
+
+    // Plugin Functionality --------------------------------------------------------------------------------------------
+
+    /**
+     * @param integer|null $blog_id
+     * @return array
+     * @throws ErrorException
+     */
+    public static function get_learning_locker_settings($blog_id = null) {
+        $current_blog_id = get_current_blog_id();
+        if (is_null($blog_id)) {
+            $blog_id = $current_blog_id;
+        }
+        $settings_blog_id = $current_blog_id;
+        $blog_switch_flag = false;
+        if ($blog_id != $settings_blog_id) {
+            $settings_blog_id = $blog_id;
+            $blog_switch_flag = true;
+        }
+        if (is_null(self::$learning_locker_settings[$settings_blog_id])) {
+            if ($blog_switch_flag) {
+                switch_to_blog($settings_blog_id);
+            }
+            $settings = h5pxapi_get_auth_settings();
+            if (!is_array($settings) ||
+                !key_exists('endpoint_url', $settings) || empty($settings['endpoint_url']) ||
+                !key_exists('username', $settings) || empty($settings['username']) ||
+                !key_exists('password', $settings) || empty($settings['password'])) {
+                throw new ErrorException(WiscH5PLTI::ERROR_NOT_CONFIGURED);
+            }
+            // Ensure a trailing '/'
+            if (substr($settings['endpoint_url'], -1) != '/') {
+                $settings['endpoint_url'] .= '/';
+            }
+            self::$learning_locker_settings[$settings_blog_id] = $settings;
+            if ($blog_switch_flag) {
+                switch_to_blog($current_blog_id);
+            }
+        }
+        return self::$learning_locker_settings[$settings_blog_id];
+    }
+
+
 }
