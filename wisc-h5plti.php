@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.1
+ * Version:           0.2
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -14,14 +14,15 @@
 // If file is called directly, abort.
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+include_once plugin_dir_path( __FILE__ ) . 'HypothesisFix.php';
 
 // Do our necessary plugin setup and add_action routines.
-WISC_LL_STATEMENTS::init();
+WISC_LL_STATEMENTS::setup();
 
 
 class WISC_LL_STATEMENTS{
 
-    public static function init(){
+    public static function setup(){
         if (isset($_GET['content_only'])) {
 //            wp_enqueue_style('wisc-h5pltinav', plugins_url('no-navigation.css', __FILE__));
         }
@@ -32,8 +33,10 @@ class WISC_LL_STATEMENTS{
 
         // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
         // script will allow h5p embedding within Hypothesis annotations.
-        wp_enqueue_script('hypothosis-core.js', "https://hypothesis-h5p.s3.us-east-2.amazonaws.com/boot.js");
+        add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
     }
+
+
 
 //    function h5p_embed_additional_scripts(&$additional_scripts) {
 //        $additional_scripts[] = '<script src="' . plugins_url('wisc-h5plti.js', __FILE__) . '" type="text/javascript"></script>';
