@@ -65,6 +65,7 @@ class WiscH5PLTI {
     }
 
     function show_chapter_grade_sync_meta_box() {
+
         try {
             self::get_learning_locker_settings(get_current_blog_id());
         } catch (ErrorException $e) {
