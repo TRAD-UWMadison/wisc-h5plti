@@ -23,38 +23,23 @@ WISC_LL_STATEMENTS::setup();
 class WISC_LL_STATEMENTS{
 
     public static function setup(){
-        if (isset($_GET['content_only'])) {
-//            wp_enqueue_style('wisc-h5pltinav', plugins_url('no-navigation.css', __FILE__));
-        }
-//        wp_enqueue_style('wisc-h5plti', plugins_url('wisc-h5plti.css', __FILE__));
         add_action('init', array('WISC_LL_STATEMENTS', 'delayed_init'));
         add_action('add_meta_boxes', array(__CLASS__,'wisc_h5plti_addStatementMetabox'));
-//        add_action('h5p_additional_scripts', array(__CLASS__, 'h5p_embed_additional_scripts'), 10, 1);
-
         // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
         // script will allow h5p embedding within Hypothesis annotations.
         add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
     }
 
-
-
-//    function h5p_embed_additional_scripts(&$additional_scripts) {
-//        $additional_scripts[] = '<script src="' . plugins_url('wisc-h5plti.js', __FILE__) . '" type="text/javascript"></script>';
-//    }
-
-
     public static function delayed_init() {
         wp_enqueue_style('wisc-h5plti', plugins_url('wisc-h5plti.css', __FILE__));
     }
 
-    function wisc_h5plti_addStatementMetabox($post)
-    {
+    function wisc_h5plti_addStatementMetabox($post) {
         add_meta_box('ll_statements_meta_box', __('H5P xAPI Grading', 'll-statements-meta'), array(__CLASS__,'get_learning_locker_statements'), 'chapter', 'normal', 'high');
 //    add_meta_box( 'll_statements_meta_box', __( 'xAPI Grading', 'll-statements-meta' ), 'get_learning_locker_statements', 'post', 'normal', 'low');
     }
 
-    function get_learning_locker_statements()
-    {
+    function get_learning_locker_statements() {
         global $wpdb;
 
         $current_blog = get_current_blog_id();
