@@ -23,6 +23,14 @@ WiscH5PLTI::setup();
 class WiscH5PLTI {
 
     const ERROR_NOT_CONFIGURED = 'ERROR_NOT_CONFIGURED';
+    const GRADING_SCHEME_BEST = 'best';
+    const GRADING_SCHEME_FIRST = 'first';
+    const GRADING_SCHEME_LAST = 'last';
+    const GRADING_SCHEMES = array(
+        self::GRADING_SCHEME_BEST,
+        self::GRADING_SCHEME_FIRST,
+        self::GRADING_SCHEME_LAST
+    );
 
     private static $learning_locker_settings = array();
 
@@ -56,71 +64,57 @@ class WiscH5PLTI {
     }
 
     function show_chapter_grade_sync_meta_box() {
+        
+        try {
+            self::get_learning_locker_settings(get_current_blog_id());
+        } catch (ErrorException $e) {
+            ?>
+                <div>
+                    <h3 class='ll-warning'>LRS settings are missing.</h3>
+                    <h4 class='ll-warning'>Please check that you have added an LRS via Dashboard -> Settings -> H5P xAPI.</h4>
+                </div>
+            <?php
+            return;
+        }
 
         global $post;
         $meta = get_post_meta( $post->ID, 'chapter_grade_sync_fields', true );
 
-        echo '<input type="hidden" name="chapter_grade_sync_meta_box_nonce" value="' . wp_create_nonce( basename(__FILE__) ) . '">';
-
-//        $current_blog = get_current_blog_id();
-//        switch_to_blog($current_blog);
-//        $post_id = get_the_ID();
-
-        $settings = h5pxapi_get_auth_settings(); // todo - use helper
-
-//        $endpoint = $settings["endpoint_url"];
-//        $auth_user = $settings["username"];
-//        $auth_password = $settings["password"];
-//        $auth = base64_encode($auth_user . ":" . $auth_password);
-
-        if (is_null($settings) || empty($settings) ||
-            is_null($settings["endpoint_url"]) || empty($settings["endpoint_url"]) ||
-            is_null($settings["username"]) || empty($settings["username"]) ||
-            is_null($settings["password"]) || empty($settings["password"])) {
-            echo "<div><h3 class='ll-warning'>LRS settings are missing.</h3><h4 class='ll-warning'>Please check that you have added an LRS in the grassblade setttings.</h4></div>";
-            return;
-        }
-
-//        wp_enqueue_script('jquery');
         wp_enqueue_script('wisc-h5plti', plugins_url('wisc-h5plti.js', __FILE__), array('jquery'));
-
-//        $xapi_process_file = plugins_url('/process-xapi-statements.php', __FILE__);
-//        $activity_id = get_site_url() . "/wp-admin/admin-ajax.php?action=h5p_embed&id=";
 
         ?>
         <div>
             <input type="hidden" name="chapter_grade_sync_meta_box_nonce" value="<?php echo wp_create_nonce( basename(__FILE__) ); ?>">
-<!--            <input type='hidden' name="chapter_grade_sync_fields[activity_url]" id='ll-submit-activity'    value='--><?php //echo $activity_id; ?><!--'>-->
-<!--            <input type='hidden' name="chapter_grade_sync_fields[endpoint_url]" id='ll-submit-endpoint'    value='--><?php //echo $endpoint; ?><!--'>-->
-<!--            <input type='hidden' name="chapter_grade_sync_fields[_____]" id='ll-submit-auth'        value='--><?php //echo $auth; ?><!--'>-->
-<!--            <input type='hidden' name="chapter_grade_sync_fields[_____]" id='ll-submit-blog'        value='--><?php //echo $current_blog; ?><!--'>-->
-<!--            <input type='hidden' name="chapter_grade_sync_fields[_____]" id='ll-submit-post'        value='--><?php //echo $post_id; ?><!--'>-->
-<!--            <input type='hidden' name="chapter_grade_sync_fields[_____]" id='ll-process-xapi'       value='--><?php //echo $xapi_process_file; ?><!--'>-->
+            <input type="hidden" name="chapter_grade_sync_fields[post_id]" value="<?php echo $post->ID; ?>">
+            <input type="hidden" name="chapter_grade_sync_fields[blog_id]" value="<?php echo get_current_blog_id(); ?>">
 
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[since]">Beginning Date: </label>                  
-                <input id="chapter_grade_sync_fields[since]" name="chapter_grade_sync_fields[since]" type="date" />
+                <input id="chapter_grade_sync_fields[since]" name="chapter_grade_sync_fields[since]" type="date" value="<?php echo $meta['since']; ?>" />
             </div>
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[until]">Ending Date: </label>
-                <input id="chapter_grade_sync_fields[until]" name="chapter_grade_sync_fields[until]" type="date" />
+                <input id="chapter_grade_sync_fields[until]" name="chapter_grade_sync_fields[until]" type="date" value="<?php echo $meta['until']; ?>" />
             </div>
 
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[grading_scheme]">Grading Scheme</label>
                 <select name="chapter_grade_sync_fields[grading_scheme]" id="chapter_grade_sync_fields[grading_scheme]">
-                    <option value="best">Best Attempt</option>
-                    <option value="first">First Attempt</option>
-                    <option value="last">Last Attempt</option>
+                    <?php foreach (self::GRADING_SCHEMES as $grading_scheme) {
+                        $title_case = ucfirst($grading_scheme);
+                        $selected = strcmp($meta['grading_scheme'], $grading_scheme) == 0 ? 'selected' : '';
+                        echo "<option value=\"$grading_scheme\" $selected> $title_case Attempt</option>";
+                    } ?>
                 </select></div>
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[ids]">H5P ids to grade: </label>
-                <input name="chapter_grade_sync_fields[ids]" id="chapter_grade_sync_fields[ids]" type="text" />
+                <input name="chapter_grade_sync_fields[ids]" id="chapter_grade_sync_fields[ids]" type="text" value="<?php echo $meta['ids']; ?>"/>
             </div>
 
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[auto_sync_enabled]">Auto-Sync enabled: </label>
-                <input name="chapter_grade_sync_fields[auto_sync_enabled]" id="chapter_grade_sync_fields[auto_sync_enabled]" type="checkbox" />
+                <?php $checked = key_exists('auto_sync_enabled', $meta) ? 'checked="checked"' : ''; ?>
+                <input name="chapter_grade_sync_fields[auto_sync_enabled]" id="chapter_grade_sync_fields[auto_sync_enabled]" type="checkbox" <?php echo $checked; ?> />
             </div>
 
 <!--            <div class="float-right">-->
@@ -204,5 +198,105 @@ class WiscH5PLTI {
         return self::$learning_locker_settings[$settings_blog_id];
     }
 
+    public static function sync_grades_for_post($blog_id, $post_id, $h5p_ids_string, $since, $until, $grading_scheme, $print_report) {
+        $h5p_ids = array();
+        $h5p_id_strings = explode(',', $h5p_ids_string);
+        foreach ($h5p_id_strings as $h5p_id_string) {
+            $h5p_id_string = trim($h5p_id_string);
+            if (is_numeric($h5p_id_string)) {
+                array_push($h5p_ids, $h5p_id_string);
+            }
+        }
+        $statements = LearningLockerInterface::get_h5p_statements($blog_id, $h5p_ids, $since, $until);
+        $report = self::process_and_sync_statements($statements, $blog_id, $post_id, $grading_scheme);
+        if ($print_report) {
+            echo json_encode($report);
+        }
+    }
+
+    private static function process_and_sync_statements($statements, $blog_id, $post_id, $grading_scheme) {
+
+        $user_data = array();
+        $questions = array();
+        $max_total_grade = 0;
+        $report = new stdClass();
+
+        foreach ($statements as $statement){
+            // Abort if the statement doesn't contain results.
+            if (!key_exists('result', $statement)) {
+                continue;
+            }
+            $info = new stdClass();
+            $info->timestamp = $statement['timestamp'];
+            $info->score = $statement['result']['score']['scaled'];
+            $info->maxScore = $statement['result']['score']['max'];
+            $info->rawScore = $statement['result']['score']['raw'];
+            $info->question = $statement['object']['definition']['name']['en-US'];
+            if ($statement['result']['score']['max'] != "0") {
+                if (is_null($info->score)){
+                    $info->score = floatval($statement['result']['score']['raw'])/floatval($statement['result']['score']['max']);
+                }
+                $user_data[$statement['actor']['name']][$statement['object']['id']][] = $info;
+                $questions[$statement['object']['id']] = new stdClass();
+                $questions[$statement['object']['id']]->maxScore = $info->maxScore;
+                $questions[$statement['object']['id']]->title = $statement['object']['definition']['name']['en-US'];
+            }
+        }
+
+        foreach($questions as $question){
+            $max_total_grade += $question->maxScore;
+        }
+
+        if (sizeof($questions) == 0){
+            $report->error = "No statements found";
+            return $report;
+        }
+
+
+        if ($max_total_grade == 0){
+            $report->error = "No scores found";
+            $report->questions = $questions;
+            return $report;
+        }
+
+        foreach($user_data as $user => $info) {
+            $userScore = 0;
+            $userId = get_user_by("login", $user);
+
+            foreach($info as $object => $object_statements){
+                usort($user_data[$user][$object], function ($a, $b) {
+                    return strtotime($a->timestamp) - strtotime($b->timestamp);
+                });
+
+                $target = null;
+                if ($grading_scheme == 'first'){
+                    $target = reset($user_data[$user][$object]);
+                } else if ($grading_scheme == 'last'){
+                    $target = end($user_data[$user][$object]);
+                } else { // Best
+                    foreach ($user_data[$user][$object] as $statement){
+                        if (is_null($target) || floatval($target->rawScore) < floatval($statement->rawScore)){
+                            $target = $statement;
+                        }
+                    }
+                }
+                $userScore += $target->rawScore;
+                $user_data[$user][$object]['target'] = $target;
+            }
+
+            $user_data[$user]['totalScore'] = $userScore;
+            $percentScore =  floatval($userScore/$max_total_grade);
+            $user_data[$user]['percentScore'] = $percentScore;
+            echo "sending to lti_outcome, $percentScore , $userId->ID, $post_id, $blog_id <br />";
+            do_action('lti_outcome', $percentScore , $userId->ID, $post_id, $blog_id);
+            // usleep(500000);
+
+        }
+
+        $report->maxGrade = $max_total_grade;
+        $report->userData = $user_data;
+        $report->questions = $questions;
+        return $report;
+    }
 
 }
