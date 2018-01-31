@@ -21,4 +21,5 @@ require_once getWpLoadPath();
 //    array(4),
 //    new DateTime("2017-11-01"), new DateTime("2018-01-23"));
 
-WiscH5PLTI::sync_grades_for_post(3,28,"3,4", new DateTime("2017-11-01"), new DateTime("2018-01-23"), WiscH5PLTI::GRADING_SCHEME_LAST, true);
+//WiscH5PLTI::sync_grades_for_post(3,28,"3,4", new DateTime("2017-11-01"), new DateTime("2018-01-23"), WiscH5PLTI::GRADING_SCHEME_LAST, true);
+WiscH5PLTI::sync_all_grades(3);

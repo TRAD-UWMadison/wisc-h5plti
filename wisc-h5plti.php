@@ -40,28 +40,44 @@ class WiscH5PLTI {
 
 
     public static function setup(){
-        add_action('init', array(__CLASS__, 'delayed_init'));
-        add_action('add_meta_boxes', array(__CLASS__, 'add_chapter_grade_sync_meta_box'));
-        add_action('save_post', array(__CLASS__, 'save_chapter_grade_sync_meta_box'));
+
+        add_action('add_meta_boxes_chapter', array(__CLASS__, 'on_add_meta_boxes_chapter'));
+        add_action('wp_ajax_edit_screen_grade_sync', array(__CLASS__, 'edit_screen_grade_sync'));
+
+        add_action('save_post_chapter', array(__CLASS__, 'save_chapter_grade_sync_meta_box'));
 
         // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
         // script will allow h5p embedding within Hypothesis annotations.
         add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
     }
 
-    public static function delayed_init() {
-        wp_enqueue_style('wisc-h5plti', plugins_url('wisc-h5plti.css', __FILE__));
-    }
+    public static function on_add_meta_boxes_chapter($post) {
+        // Sanity check
+        if (is_admin() && $post->post_type == "chapter") {
 
-    function add_chapter_grade_sync_meta_box($post) {
-        add_meta_box(
-            'll_statements_meta_box',
-            __('H5P xAPI Grading', 'll-statements-meta'),
-            array(__CLASS__, 'show_chapter_grade_sync_meta_box'),
-            'chapter',
-            'normal',
-            'high'
-        );
+            add_meta_box(
+                'll_statements_meta_box',
+                __('H5P xAPI Grading', 'll-statements-meta'),
+                array(__CLASS__, 'show_chapter_grade_sync_meta_box'),
+                'chapter',
+                'normal',
+                'high'
+            );
+
+            // Queue up some actions
+
+
+            // Queue up some scripts
+            wp_enqueue_script('wisc-h5plti', plugins_url('wisc-h5plti.js', __FILE__), array('jquery'));
+            wp_localize_script('wisc-h5plti', 'chapterGradeSync', array(
+                'blogID' => get_current_blog_id(),
+                'postID' => $post->ID,
+                'ajaxURL' => admin_url('admin-ajax.php')
+            ));
+
+            // Queue up some styles
+            wp_enqueue_style('wisc-h5plti', plugins_url('wisc-h5plti.css', __FILE__));
+        }
     }
 
     function show_chapter_grade_sync_meta_box() {
@@ -81,10 +97,9 @@ class WiscH5PLTI {
         global $post;
         $meta = get_post_meta( $post->ID, 'chapter_grade_sync_fields', true );
 
-        wp_enqueue_script('wisc-h5plti', plugins_url('wisc-h5plti.js', __FILE__), array('jquery'));
-
         ?>
-        <div>
+
+        <div id="wisc-h5plti">
             <input type="hidden" name="chapter_grade_sync_meta_box_nonce" value="<?php echo wp_create_nonce( basename(__FILE__) ); ?>">
             <input type="hidden" name="chapter_grade_sync_fields[post_id]" value="<?php echo $post->ID; ?>">
             <input type="hidden" name="chapter_grade_sync_fields[blog_id]" value="<?php echo get_current_blog_id(); ?>">
@@ -108,8 +123,8 @@ class WiscH5PLTI {
                     } ?>
                 </select></div>
             <div class="input-container">
-                <label for="chapter_grade_sync_fields[ids]">H5P ids to grade: </label>
-                <input name="chapter_grade_sync_fields[ids]" id="chapter_grade_sync_fields[ids]" type="text" value="<?php echo $meta['ids']; ?>"/>
+                <label for="chapter_grade_sync_fields[hp5_ids]">H5P ids to grade: </label>
+                <input name="chapter_grade_sync_fields[hp5_ids]" id="chapter_grade_sync_fields[hp5_ids]" type="text" value="<?php echo $meta['hp5_ids']; ?>"/>
             </div>
 
             <div class="input-container">
@@ -118,11 +133,11 @@ class WiscH5PLTI {
                 <input name="chapter_grade_sync_fields[auto_sync_enabled]" id="chapter_grade_sync_fields[auto_sync_enabled]" type="checkbox" <?php echo $checked; ?> />
             </div>
 
-<!--            <div class="float-right">-->
-<!--                <input type="button" id="ll-submit-attempted" class="button button-primary button-large" value="Send Grades to LMS" />-->
-<!--            </div>-->
+            <div class="input-container right">
+                <input type="button" id="chapter_grade_sync_fields_submit" class="button button-primary button-large" value="Send Grades to LMS" />
+            </div>
 
-            <div id='ll-statements'></div>
+            <div id='ll-statements'>&nbsp;</div>
         </div>
         <?php
 
@@ -199,6 +214,15 @@ class WiscH5PLTI {
         return self::$learning_locker_settings[$settings_blog_id];
     }
 
+    public static function sync_all_grades($blog_id) {
+        switch_to_blog($blog_id);
+        $args = array(
+            'post_type' => 'chapter'
+        );
+        $query = new WP_Query($args);
+        $a = true;
+    }
+    
     public static function sync_grades_for_post($blog_id, $post_id, $h5p_ids_string, $since, $until, $grading_scheme, $print_report) {
         $h5p_ids = array();
         $h5p_id_strings = explode(',', $h5p_ids_string);
@@ -290,7 +314,6 @@ class WiscH5PLTI {
             $user_data[$user]['percentScore'] = $percentScore;
             echo "sending to lti_outcome, $percentScore , $userId->ID, $post_id, $blog_id <br />";
             do_action('lti_outcome', $percentScore , $userId->ID, $post_id, $blog_id);
-            // usleep(500000);
 
         }
 
@@ -298,6 +321,13 @@ class WiscH5PLTI {
         $report->userData = $user_data;
         $report->questions = $questions;
         return $report;
+    }
+    
+    public static function edit_screen_grade_sync() {
+        $response = new stdClass();
+        $response->error = "error here";
+        echo json_encode($response);
+        wp_die();
     }
 
 }

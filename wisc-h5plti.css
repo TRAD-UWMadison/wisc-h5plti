@@ -1,12 +1,23 @@
+
+#wisc-h5plti {
+    margin-top: 16px;
+}
+#wisc-h5plti input[type=checkbox] {
+    margin: 0;
+}
+
 .input-container {
     display: flex;
     flex-flow: row nowrap;
     justify-content: space-between;
-    margin: 5px 4%;
+    margin: 0 6px 6px 6px;
 }
 
 .input-container input {
     border-radius: 3px;
+}
+.input-container.right {
+    justify-content: flex-end;
 }
 
 #ll-submit-grading, #ll-submit-attempted {
@@ -29,3 +40,13 @@
     text-align: center;
     color: red;
 }
+
+#ll-statements {
+    margin-top: 10px;
+}
+
+#chapter_grade_sync_fields_submit {
+    display: inline-block;
+    float: right;
+}
+
