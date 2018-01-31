@@ -21,17 +21,16 @@
 
     var syncGrades = function(e) {
         var data = {
-            action: 'edit_screen_grade_sync',
+            action: chapterGradeSync.action,
+            ajaxNonce: chapterGradeSync.ajaxNonce,
             blogID : chapterGradeSync.blogID,
-            postID : chapterGradeSync.postID,
             gradingScheme : $gradingScheme.val(),
+            h5pIDsString : $h5pIDsString.val(),
+            postID : chapterGradeSync.postID,
             since : $since.val(),
-            until : $until.val(),
-            h5pIDsString : $h5pIDsString.val()
+            until : $until.val()
         };
-        console.debug(data);
         $.ajax({
-
             data: data,
             method: 'POST',
             success: syncGradesSuccess,
@@ -44,6 +43,7 @@
         $button.prop('disabled', true);
     };
     var syncGradesSuccess = function(data, textStatus, jqXHR) {
+        console.debug(data);
         var llResults = JSON.parse(data);
         displayLLResults(llResults);
     };
@@ -65,17 +65,17 @@
             html += "<table><tr><th>User</th><th>Question</th><th>Attempt Time</th><th>Score</th><th>Max Points</th><th>Percent</th></tr>";
             for (var userName in llResults.userData){
                 for (var question in llResults.userData[userName]){
-                    if (msg.userData[userName][question].target != null) {
-                        var d = new Date(msg.userData[userName][question].target.timestamp);
+                    if (llResults.userData[userName][question].target != null) {
+                        var d = new Date(llResults.userData[userName][question].target.timestamp);
                         var datestring = d.getDate()  + "-" + (d.getMonth()+1) + "-" + d.getFullYear() + " " +
                             d.getHours() + ":" + d.getMinutes();
                         html += '<tr>';
                         html += '<td>' + userName + '</td>';
-                        html += '<td>' + msg.userData[userName][question].target.question + '</td>';
+                        html += '<td>' + llResults.userData[userName][question].target.question + '</td>';
                         html += '<td>' + datestring  + '</td>';
-                        html += '<td>' + msg.userData[userName][question].target.rawScore + '</td>';
-                        html += '<td>' + msg.userData[userName][question].target.maxScore + '</td>';
-                        html += '<td>' + msg.userData[userName][question].target.score * 100 + '%</td>';
+                        html += '<td>' + llResults.userData[userName][question].target.rawScore + '</td>';
+                        html += '<td>' + llResults.userData[userName][question].target.maxScore + '</td>';
+                        html += '<td>' + llResults.userData[userName][question].target.score * 100 + '%</td>';
                         html += '</tr>'
                     }
                 }
@@ -83,9 +83,9 @@
                 html += '<td>' + userName + '</td>';
                 html += '<td>Total Grade</td>';
                 html += '<td></td>';
-                html += '<td>' + msg.userData[userName].totalScore + '</td>';
+                html += '<td>' + llResults.userData[userName].totalScore + '</td>';
                 html += '<td>' + llResults.maxGrade + '</td>';
-                html += '<td>' + msg.userData[userName].percentScore * 100 + '%</td>';
+                html += '<td>' + llResults.userData[userName].percentScore * 100 + '%</td>';
                 html += '</tr>';
             }
             html += '</table>';

@@ -32,12 +32,13 @@ class WiscH5PLTI {
         self::GRADING_SCHEME_FIRST,
         self::GRADING_SCHEME_LAST
     );
+    const DATETIME_FORMAT = 'Y-m-d';
+    const EDIT_SCREEN_GRADE_SYNC_ACTION = 'edit_screen_grade_sync';
 
     private static $learning_locker_settings = array();
 
 
     // WordPress Related -----------------------------------------------------------------------------------------------
-
 
     public static function setup(){
 
@@ -64,15 +65,14 @@ class WiscH5PLTI {
                 'high'
             );
 
-            // Queue up some actions
-
-
             // Queue up some scripts
             wp_enqueue_script('wisc-h5plti', plugins_url('wisc-h5plti.js', __FILE__), array('jquery'));
             wp_localize_script('wisc-h5plti', 'chapterGradeSync', array(
+                'action' => self::EDIT_SCREEN_GRADE_SYNC_ACTION,
+                'ajaxNonce' => wp_create_nonce(self::EDIT_SCREEN_GRADE_SYNC_ACTION),
+                'ajaxURL' => admin_url('admin-ajax.php'),
                 'blogID' => get_current_blog_id(),
                 'postID' => $post->ID,
-                'ajaxURL' => admin_url('admin-ajax.php')
             ));
 
             // Queue up some styles
@@ -220,23 +220,11 @@ class WiscH5PLTI {
             'post_type' => 'chapter'
         );
         $query = new WP_Query($args);
-        $a = true;
     }
     
-    public static function sync_grades_for_post($blog_id, $post_id, $h5p_ids_string, $since, $until, $grading_scheme, $print_report) {
-        $h5p_ids = array();
-        $h5p_id_strings = explode(',', $h5p_ids_string);
-        foreach ($h5p_id_strings as $h5p_id_string) {
-            $h5p_id_string = trim($h5p_id_string);
-            if (is_numeric($h5p_id_string)) {
-                array_push($h5p_ids, $h5p_id_string);
-            }
-        }
+    public static function sync_grades_for_post($blog_id, $post_id, $h5p_ids, $since, $until, $grading_scheme) {
         $statements = LearningLockerInterface::get_h5p_statements($blog_id, $h5p_ids, $since, $until);
-        $report = self::process_and_sync_statements($statements, $blog_id, $post_id, $grading_scheme);
-        if ($print_report) {
-            echo json_encode($report);
-        }
+        return self::process_and_sync_statements($statements, $blog_id, $post_id, $grading_scheme);
     }
 
     private static function process_and_sync_statements($statements, $blog_id, $post_id, $grading_scheme) {
@@ -312,7 +300,6 @@ class WiscH5PLTI {
             $user_data[$user]['totalScore'] = $userScore;
             $percentScore =  floatval($userScore/$max_total_grade);
             $user_data[$user]['percentScore'] = $percentScore;
-            echo "sending to lti_outcome, $percentScore , $userId->ID, $post_id, $blog_id <br />";
             do_action('lti_outcome', $percentScore , $userId->ID, $post_id, $blog_id);
 
         }
@@ -324,10 +311,80 @@ class WiscH5PLTI {
     }
     
     public static function edit_screen_grade_sync() {
-        $response = new stdClass();
-        $response->error = "error here";
-        echo json_encode($response);
+
+        $ajax_nonce =       isset($_POST['ajaxNonce']) ? $_POST['ajaxNonce'] : null;
+        $blog_id =          isset($_POST['blogID']) ? $_POST['blogID'] : null;
+        $grading_scheme =   isset($_POST['gradingScheme']) ? $_POST['gradingScheme'] : null;
+        $h5p_ids_string =   isset($_POST['h5pIDsString']) ? $_POST['h5pIDsString'] : null;
+        $post_id =          isset($_POST['postID']) ? $_POST['postID'] : null;
+        $since =            isset($_POST['since']) ? $_POST['since'] : null;
+        $until =            isset($_POST['until']) ? $_POST['until'] : null;
+        
+        if (wp_verify_nonce($ajax_nonce, self::EDIT_SCREEN_GRADE_SYNC_ACTION) === FALSE) {
+            self::edit_screen_grade_sync_return_error("Invalid token, please refresh and resubmit.");
+            return;
+        }
+
+        if (empty($blog_id) || empty($post_id)) {
+            self::edit_screen_grade_sync_return_error("Missing required parameters, please refresh and resubmit.");
+            return;  
+        }
+        if (empty($grading_scheme) || array_search($grading_scheme, self::GRADING_SCHEMES) === FALSE) {
+            self::edit_screen_grade_sync_return_error("Invalid grading scheme");
+            return;
+        }
+
+        if (empty($since)) {
+            self::edit_screen_grade_sync_return_error("Beginning date is required.");
+            return;
+        }
+        if (empty($until)) {
+            self::edit_screen_grade_sync_return_error("Ending date is required.");
+            return;
+        }
+        $since = date_create_from_format(self::DATETIME_FORMAT, $since);
+        $until = date_create_from_format(self::DATETIME_FORMAT, $until);
+        if ($since === FALSE) {
+            self::edit_screen_grade_sync_return_error("Invalid beginning date");
+            return;
+        }
+        if ($until === FALSE) {
+            self::edit_screen_grade_sync_return_error("Invalid ending date");
+            return;
+        }
+
+        if (preg_match('/^[\s\d,]*$/', $h5p_ids_string) != 1) {
+            self::edit_screen_grade_sync_return_error("Invalid H5P ID(s) - Only comma separated numbers are allowed.");
+            return;
+        }
+        if (preg_match('/\d(\s)+\d/', $h5p_ids_string) == 1) {
+            self::edit_screen_grade_sync_return_error("Check your H5P ID(s), all values must be comma separated.");
+            return;
+        }
+        $h5p_ids = array();
+        $h5p_id_strings = explode(',', $h5p_ids_string);
+        foreach ($h5p_id_strings as $h5p_id_string) {
+            $h5p_id_string = trim($h5p_id_string);
+            if (is_numeric($h5p_id_string)) {
+                array_push($h5p_ids, $h5p_id_string);
+            }
+        }
+        if (count($h5p_ids) == 0) {
+            self::edit_screen_grade_sync_return_error("No H5P IDs were submitted.");
+            return;
+        }
+
+        $report = self::sync_grades_for_post($blog_id, $post_id, $h5p_ids, $since, $until, $grading_scheme);
+        echo json_encode($report);
+        
         wp_die();
     }
-
+    
+    public static function edit_screen_grade_sync_return_error($message) {
+        $error_obj = new stdClass();
+        $error_obj->error = $message;
+        echo json_encode($error_obj);
+        wp_die();
+    }
+    
 }
