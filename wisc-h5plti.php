@@ -20,6 +20,10 @@ include_once 'LearningLockerInterface.php';
 // Do our necessary plugin setup and add_action routines.
 WiscH5PLTI::setup();
 
+// todo: function to validate all grade_sync fields and return error(s)
+// todo: validate fields on save, populate warning meta value if there are errors
+// todo: disable auto-sync if there are errors
+
 
 class WiscH5PLTI {
 
@@ -35,6 +39,8 @@ class WiscH5PLTI {
     const DATETIME_FORMAT = 'Y-m-d';
     const EDIT_SCREEN_GRADE_SYNC_ACTION = 'edit_screen_grade_sync';
 
+    const META_KEY_AUTO_SYNC_VALIDATION_ERROR = 'auto_sync_validation_error';
+
     private static $learning_locker_settings = array();
 
 
@@ -45,11 +51,27 @@ class WiscH5PLTI {
         add_action('add_meta_boxes_chapter', array(__CLASS__, 'on_add_meta_boxes_chapter'));
         add_action('wp_ajax_edit_screen_grade_sync', array(__CLASS__, 'edit_screen_grade_sync'));
 
+        add_action('admin_notices', array(__CLASS__, 'display_auto_sync_validation_notice'));
         add_action('save_post_chapter', array(__CLASS__, 'save_chapter_grade_sync_meta_box'));
 
         // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
         // script will allow h5p embedding within Hypothesis annotations.
         add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
+    }
+
+    public static function display_auto_sync_validation_notice() {
+        global $post;
+        if (!is_admin() || $post->post_type != "chapter") {
+            return;
+        }
+
+        $auto_sync_validation_error = get_post_meta($post->ID, self::META_KEY_AUTO_SYNC_VALIDATION_ERROR, true);
+        if ($auto_sync_validation_error) {
+            ?>
+            <div class="notice notice-error"><?php echo $auto_sync_validation_error; ?></div>
+            <?php
+        }
+
     }
 
     public static function on_add_meta_boxes_chapter($post) {
@@ -96,6 +118,8 @@ class WiscH5PLTI {
 
         global $post;
         $meta = get_post_meta( $post->ID, 'chapter_grade_sync_fields', true );
+        $r = get_post_meta( $post->ID, 'chapter_grade_sync_auto_sync_enabled', true );
+        $chapter_grade_sync_auto_sync_enabled = get_post_meta( $post->ID, 'chapter_grade_sync_auto_sync_enabled', true ) ? true : false;
 
         ?>
 
@@ -128,9 +152,9 @@ class WiscH5PLTI {
             </div>
 
             <div class="input-container">
-                <label for="chapter_grade_sync_fields[auto_sync_enabled]">Auto-Sync enabled: </label>
-                <?php $checked = key_exists('auto_sync_enabled', $meta) ? 'checked="checked"' : ''; ?>
-                <input name="chapter_grade_sync_fields[auto_sync_enabled]" id="chapter_grade_sync_fields[auto_sync_enabled]" type="checkbox" <?php echo $checked; ?> />
+                <label for="chapter_grade_sync_auto_sync_enabled">Auto-Sync enabled: </label>
+                <?php $checked = $chapter_grade_sync_auto_sync_enabled ? 'checked="checked"' : ''; ?>
+                <input name="chapter_grade_sync_auto_sync_enabled" id="chapter_grade_sync_auto_sync_enabled" type="checkbox" value="true" <?php echo $checked; ?> />
             </div>
 
             <div class="input-container right">
@@ -161,6 +185,39 @@ class WiscH5PLTI {
             }
         }
 
+        // Clear any existing validation error notification
+        $auto_sync_validation_error = get_post_meta($post_id, self::META_KEY_AUTO_SYNC_VALIDATION_ERROR, true);
+        if ($auto_sync_validation_error) {
+            delete_post_meta($post_id, self::META_KEY_AUTO_SYNC_VALIDATION_ERROR, $auto_sync_validation_error);
+        }
+
+        $auto_sync_enabled = isset($_POST['chapter_grade_sync_auto_sync_enabled']) && $_POST['chapter_grade_sync_auto_sync_enabled'] == "true" ? true : false;
+        if ($auto_sync_enabled) {
+            // Validate the rest of the fields
+            $chapter_grade_sync_fields = $_POST['chapter_grade_sync_fields'];
+            $blog_id =          isset($chapter_grade_sync_fields['blog_id']) ? $chapter_grade_sync_fields['blog_id'] : null;
+            $grading_scheme =   isset($chapter_grade_sync_fields['grading_scheme']) ? $chapter_grade_sync_fields['grading_scheme'] : null;
+            $h5p_ids_string =   isset($chapter_grade_sync_fields['hp5_ids']) ? $chapter_grade_sync_fields['hp5_ids'] : null;
+            $saved_post_id =    isset($chapter_grade_sync_fields['post_id']) ? $chapter_grade_sync_fields['post_id'] : null;
+            $since =            isset($chapter_grade_sync_fields['since']) ? $chapter_grade_sync_fields['since'] : null;
+            $until =            isset($chapter_grade_sync_fields['until']) ? $chapter_grade_sync_fields['until'] : null;
+            $result = self::validate_chapter_grade_sync_fields($blog_id, $grading_scheme, $h5p_ids_string, $saved_post_id, $since, $until);
+            if ($result !== TRUE) {
+                $auto_sync_enabled = false;
+                $error_html_list = "<ul>";
+                foreach ($result as $error_message) {
+                    $error_html_list .= "<li>$error_message</li>";
+                }
+                $error_html_list .= "</ul>";
+                update_post_meta($post_id, self::META_KEY_AUTO_SYNC_VALIDATION_ERROR, "<p>Disabled H5P xAPI Grading Auto-Sync due to the following validation errors:</p> $error_html_list");
+            }
+        }
+
+        $auto_sync_enabled_old = get_post_meta( $post_id, 'chapter_grade_sync_auto_sync_enabled', true );
+        if ($auto_sync_enabled_old !== $auto_sync_enabled) {
+            update_post_meta( $post_id, 'chapter_grade_sync_auto_sync_enabled', $auto_sync_enabled );
+        }
+
         $old = get_post_meta( $post_id, 'chapter_grade_sync_fields', true );
         $new = $_POST['chapter_grade_sync_fields'];
 
@@ -170,7 +227,6 @@ class WiscH5PLTI {
             delete_post_meta( $post_id, 'chapter_grade_sync_fields', $old );
         }
     }
-
 
 
     // Plugin Functionality --------------------------------------------------------------------------------------------
@@ -309,58 +365,31 @@ class WiscH5PLTI {
         $report->questions = $questions;
         return $report;
     }
-    
+
     public static function edit_screen_grade_sync() {
 
         $ajax_nonce =       isset($_POST['ajaxNonce']) ? $_POST['ajaxNonce'] : null;
+
+        if (wp_verify_nonce($ajax_nonce, self::EDIT_SCREEN_GRADE_SYNC_ACTION) === FALSE) {
+            self::edit_screen_grade_sync_return_error("Invalid token, please refresh and resubmit.");
+            return;
+        }
+
         $blog_id =          isset($_POST['blogID']) ? $_POST['blogID'] : null;
         $grading_scheme =   isset($_POST['gradingScheme']) ? $_POST['gradingScheme'] : null;
         $h5p_ids_string =   isset($_POST['h5pIDsString']) ? $_POST['h5pIDsString'] : null;
         $post_id =          isset($_POST['postID']) ? $_POST['postID'] : null;
         $since =            isset($_POST['since']) ? $_POST['since'] : null;
         $until =            isset($_POST['until']) ? $_POST['until'] : null;
-        
-        if (wp_verify_nonce($ajax_nonce, self::EDIT_SCREEN_GRADE_SYNC_ACTION) === FALSE) {
-            self::edit_screen_grade_sync_return_error("Invalid token, please refresh and resubmit.");
+
+        $result = self::validate_chapter_grade_sync_fields($blog_id, $grading_scheme, $h5p_ids_string, $post_id, $since, $until);
+
+        if ($result !== TRUE) {
+            $error = join("<br />", $result);
+            self::edit_screen_grade_sync_return_error($error);
             return;
         }
 
-        if (empty($blog_id) || empty($post_id)) {
-            self::edit_screen_grade_sync_return_error("Missing required parameters, please refresh and resubmit.");
-            return;  
-        }
-        if (empty($grading_scheme) || array_search($grading_scheme, self::GRADING_SCHEMES) === FALSE) {
-            self::edit_screen_grade_sync_return_error("Invalid grading scheme");
-            return;
-        }
-
-        if (empty($since)) {
-            self::edit_screen_grade_sync_return_error("Beginning date is required.");
-            return;
-        }
-        if (empty($until)) {
-            self::edit_screen_grade_sync_return_error("Ending date is required.");
-            return;
-        }
-        $since = date_create_from_format(self::DATETIME_FORMAT, $since);
-        $until = date_create_from_format(self::DATETIME_FORMAT, $until);
-        if ($since === FALSE) {
-            self::edit_screen_grade_sync_return_error("Invalid beginning date");
-            return;
-        }
-        if ($until === FALSE) {
-            self::edit_screen_grade_sync_return_error("Invalid ending date");
-            return;
-        }
-
-        if (preg_match('/^[\s\d,]*$/', $h5p_ids_string) != 1) {
-            self::edit_screen_grade_sync_return_error("Invalid H5P ID(s) - Only comma separated numbers are allowed.");
-            return;
-        }
-        if (preg_match('/\d(\s)+\d/', $h5p_ids_string) == 1) {
-            self::edit_screen_grade_sync_return_error("Check your H5P ID(s), all values must be comma separated.");
-            return;
-        }
         $h5p_ids = array();
         $h5p_id_strings = explode(',', $h5p_ids_string);
         foreach ($h5p_id_strings as $h5p_id_string) {
@@ -368,10 +397,6 @@ class WiscH5PLTI {
             if (is_numeric($h5p_id_string)) {
                 array_push($h5p_ids, $h5p_id_string);
             }
-        }
-        if (count($h5p_ids) == 0) {
-            self::edit_screen_grade_sync_return_error("No H5P IDs were submitted.");
-            return;
         }
 
         $report = self::sync_grades_for_post($blog_id, $post_id, $h5p_ids, $since, $until, $grading_scheme);
@@ -386,5 +411,68 @@ class WiscH5PLTI {
         echo json_encode($error_obj);
         wp_die();
     }
-    
+
+    /**
+     * @param string $blog_id
+     * @param string $grading_scheme
+     * @param string $h5p_ids_string
+     * @param string $post_id
+     * @param string $since
+     * @param string $until
+     * @return array|bool Returns TRUE if everything validates, returns an array of error messages (stings) on
+     *      validation error(s).
+     */
+    private static function validate_chapter_grade_sync_fields($blog_id, $grading_scheme, $h5p_ids_string, $post_id, $since, $until) {
+
+        $error_messages = array();
+
+        if (empty($blog_id) || empty($post_id)) {
+            array_push($error_messages, "Missing required parameters, please refresh and resubmit.");
+        }
+
+        if (empty($grading_scheme) || array_search($grading_scheme, self::GRADING_SCHEMES) === FALSE) {
+            array_push($error_messages, "Invalid grading scheme.");
+        }
+
+        if (empty($since)) {
+            array_push($error_messages, "Beginning date is required.");
+        } else {
+            $since = date_create_from_format(self::DATETIME_FORMAT, $since);
+            if ($since === FALSE) {
+                array_push($error_messages, "Invalid beginning date.");
+            }
+        }
+
+        if (empty($until)) {
+            array_push($error_messages, "Ending date is required.");
+        } else {
+            $until = date_create_from_format(self::DATETIME_FORMAT, $until);
+            if ($until === FALSE) {
+                array_push($error_messages, "Invalid ending date.");
+            }
+        }
+
+        if (preg_match('/^[\s\d,]*$/', $h5p_ids_string) != 1) {
+            array_push($error_messages, "Invalid H5P ID(s) - Only comma separated numbers are allowed.");
+        } else {
+            if (preg_match('/\d(\s)+\d/', $h5p_ids_string) == 1) {
+                array_push($error_messages, "Check your H5P ID(s), all values must be comma separated.");
+            } else {
+                $h5p_ids = array();
+                $h5p_id_strings = explode(',', $h5p_ids_string);
+                foreach ($h5p_id_strings as $h5p_id_string) {
+                    $h5p_id_string = trim($h5p_id_string);
+                    if (is_numeric($h5p_id_string)) {
+                        array_push($h5p_ids, $h5p_id_string);
+                    }
+                }
+                if (count($h5p_ids) == 0) {
+                    array_push($error_messages, "No H5P IDs were submitted.");
+                }
+            }
+        }
+
+        return count($error_messages) == 0 ? TRUE : $error_messages;
+    }
+
 }
