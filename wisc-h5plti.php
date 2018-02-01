@@ -20,11 +20,6 @@ include_once 'LearningLockerInterface.php';
 // Do our necessary plugin setup and add_action routines.
 WiscH5PLTI::setup();
 
-// todo: function to validate all grade_sync fields and return error(s)
-// todo: validate fields on save, populate warning meta value if there are errors
-// todo: disable auto-sync if there are errors
-
-
 class WiscH5PLTI {
 
     const ERROR_NOT_CONFIGURED = 'ERROR_NOT_CONFIGURED';
