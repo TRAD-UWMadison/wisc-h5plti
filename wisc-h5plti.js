@@ -12,7 +12,7 @@
     var apply_bindings = function() {
         $button = $('#chapter_grade_sync_fields_submit');
         $gradingScheme = $("#chapter_grade_sync_fields\\[grading_scheme\\]");
-        $h5pIDsString = $("#chapter_grade_sync_fields\\[hp5_ids\\]");
+        $h5pIDsString = $("#chapter_grade_sync_fields\\[h5p_ids_string\\]");
         $llStatements = $('#ll-statements');
         $since = $("#chapter_grade_sync_fields\\[since\\]");
         $until = $("#chapter_grade_sync_fields\\[until\\]");
@@ -43,7 +43,6 @@
         $button.prop('disabled', true);
     };
     var syncGradesSuccess = function(data, textStatus, jqXHR) {
-        console.debug(data);
         var llResults = JSON.parse(data);
         displayLLResults(llResults);
     };

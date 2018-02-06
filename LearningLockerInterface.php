@@ -64,8 +64,8 @@ class LearningLockerInterface {
     /**
      * @param $blog_id
      * @param $h5p_ids
-     * @param null $since
-     * @param null $until
+     * @param DateTime|null $since
+     * @param DateTime|null $until
      * @return array|void
      * @throws ErrorException
      *      Exception may be bubbled up from WiscH5PLTI::get_learning_locker_settings.
