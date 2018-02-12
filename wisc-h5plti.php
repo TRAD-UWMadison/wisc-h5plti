@@ -74,7 +74,7 @@ class WiscH5PLTI {
 
     public static function display_auto_sync_validation_notice() {
         global $post;
-        if (!is_admin() || $post->post_type != "chapter") {
+        if (!is_admin() || !isset($post) || $post->post_type != "chapter") {
             return;
         }
 
@@ -238,6 +238,9 @@ class WiscH5PLTI {
 
     public static function add_admin_scripts( $hook ) {
         global $post;
+        if ( !isset($post) ) {
+            return;
+        }
         switch ($post->post_type) {
             case H5PGradeSyncError::SLUG:
             case H5PGradeSyncLog::SLUG:
