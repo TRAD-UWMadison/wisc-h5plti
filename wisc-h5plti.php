@@ -401,7 +401,6 @@ class WiscH5PLTI {
 
     public static function sync_all_grades($blog_id) {
         switch_to_blog($blog_id);
-        // todo: alphabetize chapters?
         $args = array(
             'post_type' => 'chapter',
             'meta_key' => 'chapter_grade_sync_auto_sync_enabled',
@@ -443,7 +442,6 @@ class WiscH5PLTI {
             $until = date_create_from_format(self::DATETIME_FORMAT, $until);
             
             $report = self::sync_grades_for_post($blog_id, $post->ID, $h5p_ids, $since, $until, $grading_scheme);
-            // todo: create log, react to errors
             $log_string .= "<td>" . join(", ", $h5p_ids) . "</td>";
             if ( isset($report->error) ) {
                 $log_string .= "<td>Error reported: <br />" . $report->error . "</td>";
