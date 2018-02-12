@@ -53,11 +53,14 @@
     width: 100%;
 }
 
+#h5p-grade-sync-error-content table,
 #h5p-grade-sync-log-content table {
     width: 100%;
     border-collapse: collapse;
     margin-top: 12px;
 }
+#h5p-grade-sync-error-content td,
+#h5p-grade-sync-error-content th,
 #h5p-grade-sync-log-content td,
 #h5p-grade-sync-log-content th {
     border: 1px solid #ddd;

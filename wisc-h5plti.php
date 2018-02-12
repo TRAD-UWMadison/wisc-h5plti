@@ -14,6 +14,7 @@
 // If file is called directly, abort.
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+include_once plugin_dir_path( __FILE__ ) . 'H5PGradeSyncError.php';
 include_once plugin_dir_path( __FILE__ ) . 'H5PGradeSyncLog.php';
 include_once plugin_dir_path( __FILE__ ) . 'HypothesisFix.php';
 include_once 'LearningLockerInterface.php';
@@ -46,8 +47,6 @@ class WiscH5PLTI {
 
     public static function setup(){
 
-
-
         add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ) );
         add_action( 'admin_init', array( __CLASS__, 'settings_page_init' ) );
 
@@ -63,7 +62,6 @@ class WiscH5PLTI {
         add_filter('cron_schedules', array(__CLASS__, 'custom_cron_schedule'));
         $now = time();
         $next = wp_next_scheduled( self::WISC_H5P_CRON_HOOK );
-//        wp_clear_scheduled_hook( self::WISC_H5P_CRON_HOOK );
         if ( ! wp_next_scheduled( self::WISC_H5P_CRON_HOOK ) ) {
             wp_schedule_event( time(), self::WISC_H5P_CRON_SCHEDULE, self::WISC_H5P_CRON_HOOK);
         }
@@ -240,8 +238,10 @@ class WiscH5PLTI {
 
     public static function add_admin_scripts( $hook ) {
         global $post;
-        if ( $post->post_type == H5PGradeSyncLog::SLUG ) {
-            wp_enqueue_style( 'wisc-h5plti.css', plugins_url('wisc-h5plti.css', __FILE__));
+        switch ($post->post_type) {
+            case H5PGradeSyncError::SLUG:
+            case H5PGradeSyncLog::SLUG:
+                wp_enqueue_style( 'wisc-h5plti.css', plugins_url('wisc-h5plti.css', __FILE__));
         }
     }
 
@@ -335,8 +335,8 @@ class WiscH5PLTI {
     public static function custom_cron_schedule($schedules) {
         if ( !isset( $schedules[self::WISC_H5P_CRON_SCHEDULE] ) ) {
             $schedules[self::WISC_H5P_CRON_SCHEDULE] = array(
-                'interval' => 10, // 5*60,
-                'display' => __('Once ever 5 minutes')
+                'interval' => 30*60,
+                'display' => __('Once every 30 minutes')
             );
         }
         return $schedules;
@@ -424,15 +424,15 @@ class WiscH5PLTI {
             $since =            isset($chapter_grade_sync_fields['since']) ? $chapter_grade_sync_fields['since'] : null;
             $until =            isset($chapter_grade_sync_fields['until']) ? $chapter_grade_sync_fields['until'] : null;
             $response = self::validate_chapter_grade_sync_fields($grading_scheme, $h5p_ids_string, $since, $until);
-            if ($response !== TRUE) {
+            if ($response !== TRUE && is_array($response)) {
+                // disable auto grade sync
                 update_post_meta( $post->ID, 'chapter_grade_sync_auto_sync_enabled', false);
-                $log_string .= "<td>$since</td><td>$until</td><td>$grading_scheme</td><td>$h5p_ids_string</td><td>Error(s) occurred; auto-sync has been disabled for this chapter. <br /><ul>";
-                if ( is_array($response) ) {
-                    foreach ($response as $error) {
-                        $log_string .= "<li>$error</li>";
-                    }
-                }
-                $log_string .= "</ul></tr>";
+                // Update the running log statement
+                $log_string .= "<td>$since</td><td>$until</td><td>$grading_scheme</td><td>$h5p_ids_string</td><td>Error(s) occurred; auto-sync has been disabled for this chapter. <br />";
+                $log_string .= '<ul><li>' . join("</li><li>", $response) . '</li></ul>';
+                $log_string .= "</tr>";
+                // Create a stand-alone error record too
+                H5PGradeSyncError::create_error($post->post_title, $post->ID, $since, $until, $grading_scheme, $h5p_ids_string, $response, true);
                 continue;
             }
 
@@ -447,6 +447,8 @@ class WiscH5PLTI {
             $log_string .= "<td>" . join(", ", $h5p_ids) . "</td>";
             if ( isset($report->error) ) {
                 $log_string .= "<td>Error reported: <br />" . $report->error . "</td>";
+                // Create a stand-alone error record too
+                H5PGradeSyncError::create_error($post->post_title, $post->ID, $since->format(self::DATETIME_FORMAT), $until->format(self::DATETIME_FORMAT), $grading_scheme, $h5p_ids_string, array($report->error), false);
             }
             $log_string .= "</tr>";
         }

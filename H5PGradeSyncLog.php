@@ -10,16 +10,16 @@ class H5PGradeSyncLog {
     const SLUG = 'h5p-grade-sync-log';
 
     public static function setup() {
-        add_action( 'add_meta_boxes_' . H5PGradeSyncLog::SLUG , array( __CLASS__, 'add_meta_box' ) );
-        add_action( 'init', array( 'H5PGradeSyncLog', 'init_custom_post_type' ) );
+        add_action( 'add_meta_boxes_' . self::SLUG , array( __CLASS__, 'add_meta_box' ) );
+        add_action( 'init', array( __CLASS__, 'init_custom_post_type' ) );
     }
 
     public static function add_meta_box() {
         add_meta_box(
             'h5p-grade-sync-log-content',
             'Log Report',
-            array( 'H5PGradeSyncLog', 'print_meta_box' ),
-            H5PGradeSyncLog::SLUG,
+            array( __CLASS__, 'print_meta_box' ),
+            self::SLUG,
             'normal',
             'high'
         );
@@ -50,7 +50,7 @@ class H5PGradeSyncLog {
             'create_posts' => 'do_not_allow',
         );
         register_post_type(
-            H5PGradeSyncLog::SLUG,
+            self::SLUG,
             array(
                 'capabilities' => $capabilities,
                 'capability_type' => 'post',
