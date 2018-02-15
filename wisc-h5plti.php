@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.2
+ * Version:           0.2.2
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -32,6 +32,10 @@ class WiscH5PLTI {
     const GRADING_SCHEME_LAST = 'last';
     const META_KEY_AUTO_SYNC_VALIDATION_ERROR = 'auto_sync_validation_error';
     const SETTINGS_FIELD_AUTO_GRADE_SYNC_ENABLED = 'auto-grade-sync-enabled';
+    const WISC_H5P_CRON_DISPLAY = "Once every 30 minutes";
+    const WISC_H5P_CRON_HOOK = 'wisc_h5p_cron_hook';
+    const WISC_H5P_CRON_INTERVAL = 30*60;
+    const WISC_H5P_CRON_SCHEDULE = 'wisc_h5p_cron_schedule';
 
     const GRADING_SCHEMES = array(
         self::GRADING_SCHEME_BEST,
@@ -60,8 +64,6 @@ class WiscH5PLTI {
 
         // Cron
         add_filter('cron_schedules', array(__CLASS__, 'custom_cron_schedule'));
-        $now = time();
-        $next = wp_next_scheduled( self::WISC_H5P_CRON_HOOK );
         if ( ! wp_next_scheduled( self::WISC_H5P_CRON_HOOK ) ) {
             wp_schedule_event( time(), self::WISC_H5P_CRON_SCHEDULE, self::WISC_H5P_CRON_HOOK);
         }
@@ -70,6 +72,8 @@ class WiscH5PLTI {
         // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
         // script will allow h5p embedding within Hypothesis annotations.
         add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
+
+        register_deactivation_hook( __FILE__, array( __CLASS__, 'on_deactivate') );
     }
 
     public static function display_auto_sync_validation_notice() {
@@ -115,7 +119,7 @@ class WiscH5PLTI {
         }
     }
 
-    function show_chapter_grade_sync_meta_box() {
+    public static function show_chapter_grade_sync_meta_box() {
 
         try {
             self::get_learning_locker_settings(get_current_blog_id());
@@ -131,6 +135,11 @@ class WiscH5PLTI {
 
         global $post;
         $meta = get_post_meta( $post->ID, 'chapter_grade_sync_fields', true );
+        if ( ! is_array($meta) ) { $meta = array(); }
+        $since = array_key_exists('since', $meta) ? $meta['since'] : '';
+        $until = array_key_exists('until', $meta) ? $meta['until'] : '';
+        $grading_scheme = array_key_exists('grading_scheme', $meta) ? $meta['grading_scheme'] : '';
+        $h5p_ids_string = array_key_exists('h5p_ids_string', $meta) ? $meta['h5p_ids_string'] : '';
         $chapter_grade_sync_auto_sync_enabled = get_post_meta( $post->ID, 'chapter_grade_sync_auto_sync_enabled', true ) ? true : false;
 
         ?>
@@ -140,25 +149,25 @@ class WiscH5PLTI {
 
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[since]">Beginning Date: </label>                  
-                <input id="chapter_grade_sync_fields[since]" name="chapter_grade_sync_fields[since]" type="date" value="<?php echo $meta['since']; ?>" />
+                <input id="chapter_grade_sync_fields[since]" name="chapter_grade_sync_fields[since]" type="date" value="<?php echo $since; ?>" />
             </div>
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[until]">Ending Date: </label>
-                <input id="chapter_grade_sync_fields[until]" name="chapter_grade_sync_fields[until]" type="date" value="<?php echo $meta['until']; ?>" />
+                <input id="chapter_grade_sync_fields[until]" name="chapter_grade_sync_fields[until]" type="date" value="<?php echo $until; ?>" />
             </div>
 
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[grading_scheme]">Grading Scheme</label>
                 <select name="chapter_grade_sync_fields[grading_scheme]" id="chapter_grade_sync_fields[grading_scheme]">
-                    <?php foreach (self::GRADING_SCHEMES as $grading_scheme) {
-                        $title_case = ucfirst($grading_scheme);
-                        $selected = strcmp($meta['grading_scheme'], $grading_scheme) == 0 ? 'selected' : '';
-                        echo "<option value=\"$grading_scheme\" $selected> $title_case Attempt</option>";
+                    <?php foreach (self::GRADING_SCHEMES as $gs) {
+                        $title_case = ucfirst($gs);
+                        $selected = strcmp($grading_scheme, $gs) == 0 ? 'selected' : '';
+                        echo "<option value=\"$gs\" $selected> $title_case Attempt</option>";
                     } ?>
                 </select></div>
             <div class="input-container">
                 <label for="chapter_grade_sync_fields[h5p_ids_string]">H5P ids to grade: </label>
-                <input name="chapter_grade_sync_fields[h5p_ids_string]" id="chapter_grade_sync_fields[h5p_ids_string]" type="text" value="<?php echo $meta['h5p_ids_string']; ?>"/>
+                <input name="chapter_grade_sync_fields[h5p_ids_string]" id="chapter_grade_sync_fields[h5p_ids_string]" type="text" value="<?php echo $h5p_ids_string; ?>"/>
             </div>
 
             <div class="input-container">
@@ -177,7 +186,7 @@ class WiscH5PLTI {
 
     }
 
-    function save_chapter_grade_sync_meta_box($post_id) {
+    public static function save_chapter_grade_sync_meta_box($post_id) {
         // verify nonce
         if ( !wp_verify_nonce( $_POST['chapter_grade_sync_meta_box_nonce'], basename(__FILE__) ) ) {
             return $post_id;
@@ -246,6 +255,10 @@ class WiscH5PLTI {
             case H5PGradeSyncLog::SLUG:
                 wp_enqueue_style( 'wisc-h5plti.css', plugins_url('wisc-h5plti.css', __FILE__));
         }
+    }
+
+    public static function on_deactivate() {
+        wp_clear_scheduled_hook( self::WISC_H5P_CRON_HOOK );
     }
 
 
@@ -332,14 +345,13 @@ class WiscH5PLTI {
 
     // WordPress: Cron -------------------------------------------------------------------------------------------------
 
-    const WISC_H5P_CRON_SCHEDULE = 'wisc_h5p_cron_schedule';
-    const WISC_H5P_CRON_HOOK = 'wisc_h5p_cron_hook';
-
     public static function custom_cron_schedule($schedules) {
-        if ( !isset( $schedules[self::WISC_H5P_CRON_SCHEDULE] ) ) {
+        if ( !isset( $schedules[self::WISC_H5P_CRON_SCHEDULE] )
+            || $schedules[self::WISC_H5P_CRON_SCHEDULE]['interval'] != self::WISC_H5P_CRON_INTERVAL
+            || $schedules[self::WISC_H5P_CRON_SCHEDULE]['display'] != __(self::WISC_H5P_CRON_DISPLAY) ) {
             $schedules[self::WISC_H5P_CRON_SCHEDULE] = array(
-                'interval' => 30*60,
-                'display' => __('Once every 30 minutes')
+                'interval' => self::WISC_H5P_CRON_INTERVAL,
+                'display' => __(self::WISC_H5P_CRON_DISPLAY)
             );
         }
         return $schedules;
@@ -379,7 +391,7 @@ class WiscH5PLTI {
             $settings_blog_id = $blog_id;
             $blog_switch_flag = true;
         }
-        if (is_null(self::$learning_locker_settings[$settings_blog_id])) {
+        if ( ! array_key_exists($settings_blog_id, self::$learning_locker_settings) ) {
             if ($blog_switch_flag) {
                 switch_to_blog($settings_blog_id);
             }
