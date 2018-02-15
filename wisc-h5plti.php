@@ -73,6 +73,7 @@ class WiscH5PLTI {
         // script will allow h5p embedding within Hypothesis annotations.
         add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
 
+        register_activation_hook( __FILE__, array( __CLASS__, 'on_activate') );
         register_deactivation_hook( __FILE__, array( __CLASS__, 'on_deactivate') );
     }
 
@@ -257,6 +258,9 @@ class WiscH5PLTI {
         }
     }
 
+    public static function on_activate() {
+        wp_clear_scheduled_hook( self::WISC_H5P_CRON_HOOK );
+    }
     public static function on_deactivate() {
         wp_clear_scheduled_hook( self::WISC_H5P_CRON_HOOK );
     }
