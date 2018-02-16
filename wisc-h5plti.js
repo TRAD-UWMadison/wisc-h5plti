@@ -65,9 +65,14 @@
             for (var userName in llResults.userData){
                 for (var question in llResults.userData[userName]){
                     if (llResults.userData[userName][question].target != null) {
-                        var d = new Date(llResults.userData[userName][question].target.timestamp);
-                        var datestring = d.getDate()  + "-" + (d.getMonth()+1) + "-" + d.getFullYear() + " " +
-                            d.getHours() + ":" + d.getMinutes();
+                        var datestring;
+                        if (llResults.userData[userName][question].target.timestamp) {
+                            var d = new Date(llResults.userData[userName][question].target.timestamp);
+                            datestring = d.getDate()  + "-" + (d.getMonth()+1) + "-" + d.getFullYear() + " " +
+                                d.getHours() + ":" + d.getMinutes();
+                        } else {
+                            datestring = "n/a";
+                        }
                         html += '<tr>';
                         html += '<td>' + userName + '</td>';
                         html += '<td>' + llResults.userData[userName][question].target.question + '</td>';

@@ -27,6 +27,7 @@ class WiscH5PLTI {
     const DATETIME_FORMAT = 'Y-m-d';
     const EDIT_SCREEN_GRADE_SYNC_ACTION = 'edit_screen_grade_sync';
     const ERROR_NOT_CONFIGURED = 'ERROR_NOT_CONFIGURED';
+    const GRADING_SCHEME_AVERAGE = 'average';
     const GRADING_SCHEME_BEST = 'best';
     const GRADING_SCHEME_FIRST = 'first';
     const GRADING_SCHEME_LAST = 'last';
@@ -38,6 +39,7 @@ class WiscH5PLTI {
     const WISC_H5P_CRON_SCHEDULE = 'wisc_h5p_cron_schedule';
 
     const GRADING_SCHEMES = array(
+        self::GRADING_SCHEME_AVERAGE,
         self::GRADING_SCHEME_BEST,
         self::GRADING_SCHEME_FIRST,
         self::GRADING_SCHEME_LAST
@@ -507,12 +509,14 @@ class WiscH5PLTI {
             $info->question = $statement['object']['definition']['name']['en-US'];
             if ($statement['result']['score']['max'] != "0") {
                 if (is_null($info->score)){
-                    $info->score = floatval($statement['result']['score']['raw'])/floatval($statement['result']['score']['max']);
+                    $info->score = floatval($info->rawScore) / floatval($info->maxScore);
                 }
-                $user_data[$statement['actor']['name']][$statement['object']['id']][] = $info;
-                $questions[$statement['object']['id']] = new stdClass();
-                $questions[$statement['object']['id']]->maxScore = $info->maxScore;
-                $questions[$statement['object']['id']]->title = $statement['object']['definition']['name']['en-US'];
+                $user_data[ $statement['actor']['name'] ][ $statement['object']['id'] ][] = $info;
+                if ( ! isset( $questions[ $statement['object']['id'] ] ) ) {
+                    $questions[$statement['object']['id']] = new stdClass();
+                    $questions[$statement['object']['id']]->maxScore = $info->maxScore;
+                    $questions[$statement['object']['id']]->title = $info->question;
+                }
             }
         }
 
@@ -537,24 +541,56 @@ class WiscH5PLTI {
             $userId = get_user_by("login", $user);
 
             foreach($info as $object => $object_statements){
+
                 usort($user_data[$user][$object], function ($a, $b) {
                     return strtotime($a->timestamp) - strtotime($b->timestamp);
                 });
 
-                $target = null;
-                if ($grading_scheme == 'first'){
-                    $target = reset($user_data[$user][$object]);
-                } else if ($grading_scheme == 'last'){
-                    $target = end($user_data[$user][$object]);
-                } else { // Best
-                    foreach ($user_data[$user][$object] as $statement){
-                        if (is_null($target) || floatval($target->rawScore) < floatval($statement->rawScore)){
-                            $target = $statement;
-                        }
+                if ( $grading_scheme == self::GRADING_SCHEME_AVERAGE ) {
+                    if ( count( $user_data[$user][$object] ) == 0 ) {
+                        continue;
                     }
+                    $running_raw_score = 0;
+                    foreach ( $user_data[$user][$object] as $statement ) {
+                        $running_raw_score += floatval( $statement->rawScore );
+                    }
+
+                    $this_average_score = $running_raw_score / count( $user_data[$user][$object] );
+                    $this_average_score = round($this_average_score, 3);
+                    $userScore += $this_average_score;
+                    $front_end_report = new stdClass();
+                    $front_end_report->timestamp = null;
+                    $front_end_report->score = $this_average_score / $user_data[$user][$object][0]->maxScore;
+                    $front_end_report->maxScore = $user_data[$user][$object][0]->maxScore;
+                    $front_end_report->rawScore = $this_average_score . " (Avg. of " . count( $user_data[$user][$object] ) . " attempts)";
+                    $front_end_report->question = $user_data[$user][$object][0]->question;
+
+                    $user_data[$user][$object]['target'] = $front_end_report;
+
+                } else {
+                    $target = null;
+                    switch ($grading_scheme) {
+                        case self::GRADING_SCHEME_BEST:
+                            foreach ($user_data[$user][$object] as $statement){
+                                if (is_null($target) || floatval($target->rawScore) < floatval($statement->rawScore)){
+                                    $target = $statement;
+                                }
+                            }
+                            break;
+                        case self::GRADING_SCHEME_FIRST:
+                            $target = reset($user_data[$user][$object]);
+                            break;
+                        case self::GRADING_SCHEME_LAST:
+                            $target = end($user_data[$user][$object]);
+                            break;
+                        default:
+                            $report->error = "Unrecognized grading scheme '$grading_scheme'";
+                            return $report;
+                    }
+                    $userScore += $target->rawScore;
+                    $user_data[$user][$object]['target'] = $target;
                 }
-                $userScore += $target->rawScore;
-                $user_data[$user][$object]['target'] = $target;
+
             }
 
             $user_data[$user]['totalScore'] = $userScore;
