@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.2.2
+ * Version:           0.2.3
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -64,7 +64,7 @@ class WiscH5PLTI {
 
         add_action('admin_enqueue_scripts', array( __CLASS__, 'add_admin_scripts') );
 
-        // Inject js into Hypothesis
+        // Inject js into Hypothesis embeds
         add_action('h5p_additional_embed_head_tags', array( __CLASS__, 'h5pxapi_h5p_embed_additional_scripts' ), 10, 1);
 
         // Cron
