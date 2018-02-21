@@ -64,6 +64,9 @@ class WiscH5PLTI {
 
         add_action('admin_enqueue_scripts', array( __CLASS__, 'add_admin_scripts') );
 
+        // Inject js into Hypothesis
+        add_action('h5p_additional_embed_head_tags', array( __CLASS__, 'h5pxapi_h5p_embed_additional_scripts' ), 10, 1);
+
         // Cron
         add_filter('cron_schedules', array(__CLASS__, 'custom_cron_schedule'));
         if ( ! wp_next_scheduled( self::WISC_H5P_CRON_HOOK ) ) {
@@ -77,6 +80,12 @@ class WiscH5PLTI {
 
         register_activation_hook( __FILE__, array( __CLASS__, 'on_activate') );
         register_deactivation_hook( __FILE__, array( __CLASS__, 'on_deactivate') );
+    }
+
+    function h5pxapi_h5p_embed_additional_scripts(&$additional_embed_head_tags) {
+        $additional_embed_head_tags[] = '<script src="' . includes_url()."/js/jquery/jquery.js" . '" type="text/javascript"></script>';
+        $additional_embed_head_tags[] = '<script src="' . plugins_url()."/wisc-h5plti/wp-h5p-xapi-embed-settings.js.php" . '" type="text/javascript"></script>';
+        $additional_embed_head_tags[] = '<script src="' . plugins_url()."/wp-h5p-xapi/wp-h5p-xapi.js" . '" type="text/javascript"></script>';
     }
 
     public static function display_auto_sync_validation_notice() {
