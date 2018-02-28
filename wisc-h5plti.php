@@ -84,7 +84,11 @@ class WiscH5PLTI {
 
     function h5pxapi_h5p_embed_additional_scripts(&$additional_embed_head_tags) {
         $additional_embed_head_tags[] = '<script src="' . includes_url()."/js/jquery/jquery.js" . '" type="text/javascript"></script>';
+<<<<<<< Updated upstream
         $additional_embed_head_tags[] = '<script src="' . plugins_url('wp-h5p-xapi-embed-settings.js.php', __FILE__) . '" type="text/javascript"></script>';
+=======
+        $additional_embed_head_tags[] = '<script src="' . plugins_url( "wp-h5p-xapi-embed-settings.js.php", __FILE__) . '" type="text/javascript"></script>';
+>>>>>>> Stashed changes
         $additional_embed_head_tags[] = '<script src="' . plugins_url() . "/wp-h5p-xapi/wp-h5p-xapi.js" . '" type="text/javascript"></script>';
     }
 
@@ -617,6 +621,8 @@ class WiscH5PLTI {
 
     public static function edit_screen_grade_sync() {
 
+        write_log('edit_screen_grade_sync');
+
         $ajax_nonce =       isset($_POST['ajaxNonce']) ? $_POST['ajaxNonce'] : null;
 
         if (wp_verify_nonce($ajax_nonce, self::EDIT_SCREEN_GRADE_SYNC_ACTION) === FALSE) {
@@ -719,4 +725,16 @@ class WiscH5PLTI {
         return $h5p_ids;
     }
     
+}
+
+if (!function_exists('write_log')) {
+    function write_log ( $log )  {
+        if ( true === WP_DEBUG ) {
+            if ( is_array( $log ) || is_object( $log ) ) {
+                error_log( print_r( $log, true ) );
+            } else {
+                error_log( $log );
+            }
+        }
+    }
 }
