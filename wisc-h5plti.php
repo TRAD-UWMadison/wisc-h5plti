@@ -83,11 +83,8 @@ class WiscH5PLTI {
     }
 
     public static function hypothesis_custom_boot() {
-
-        write_log("hypothesis_custom_boot");
         if ( wp_script_is( 'hypothesis', 'enqueued' ) ) {
             wp_deregister_script('hypothesis');
-            write_log("replacing boot script with custom script");
             wp_enqueue_script('hypothesis-custom', "https://hypothesis-h5p.s3.us-east-2.amazonaws.com/boot.js");
         }
 
@@ -628,8 +625,6 @@ class WiscH5PLTI {
 
     public static function edit_screen_grade_sync() {
 
-        write_log('edit_screen_grade_sync');
-
         $ajax_nonce =       isset($_POST['ajaxNonce']) ? $_POST['ajaxNonce'] : null;
 
         if (wp_verify_nonce($ajax_nonce, self::EDIT_SCREEN_GRADE_SYNC_ACTION) === FALSE) {
@@ -734,14 +729,14 @@ class WiscH5PLTI {
     
 }
 
-if (!function_exists('write_log')) {
-    function write_log ( $log )  {
-        if ( true === WP_DEBUG ) {
-            if ( is_array( $log ) || is_object( $log ) ) {
-                error_log( print_r( $log, true ) );
-            } else {
-                error_log( $log );
-            }
-        }
-    }
-}
+//if (!function_exists('write_log')) {
+//    function write_log ( $log )  {
+//        if ( true === WP_DEBUG ) {
+//            if ( is_array( $log ) || is_object( $log ) ) {
+//                error_log( print_r( $log, true ) );
+//            } else {
+//                error_log( $log );
+//            }
+//        }
+//    }
+//}
