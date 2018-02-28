@@ -16,7 +16,6 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 include_once plugin_dir_path( __FILE__ ) . 'H5PGradeSyncError.php';
 include_once plugin_dir_path( __FILE__ ) . 'H5PGradeSyncLog.php';
-include_once plugin_dir_path( __FILE__ ) . 'HypothesisFix.php';
 include_once 'LearningLockerInterface.php';
 
 // Do our necessary plugin setup and add_action routines.
@@ -76,19 +75,27 @@ class WiscH5PLTI {
 
         // Include a custom rolled Hypothesis (plugin) loading script provided by the Hypothesis team.  This loading
         // script will allow h5p embedding within Hypothesis annotations.
-        add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
+//        add_action( 'wp', array('HypothesisFix', 'add_custom_hypothesis'), 100);
+        add_action( 'wp', array( __CLASS__, 'hypothesis_custom_boot'), 100);
 
         register_activation_hook( __FILE__, array( __CLASS__, 'on_activate') );
         register_deactivation_hook( __FILE__, array( __CLASS__, 'on_deactivate') );
     }
 
-    function h5pxapi_h5p_embed_additional_scripts(&$additional_embed_head_tags) {
+    public static function hypothesis_custom_boot() {
+
+        write_log("hypothesis_custom_boot");
+        if ( wp_script_is( 'hypothesis', 'enqueued' ) ) {
+            wp_deregister_script('hypothesis');
+            write_log("replacing boot script with custom script");
+            wp_enqueue_script('hypothesis-custom', "https://hypothesis-h5p.s3.us-east-2.amazonaws.com/boot.js");
+        }
+
+    }
+
+    public static function h5pxapi_h5p_embed_additional_scripts(&$additional_embed_head_tags) {
         $additional_embed_head_tags[] = '<script src="' . includes_url()."/js/jquery/jquery.js" . '" type="text/javascript"></script>';
-<<<<<<< Updated upstream
         $additional_embed_head_tags[] = '<script src="' . plugins_url('wp-h5p-xapi-embed-settings.js.php', __FILE__) . '" type="text/javascript"></script>';
-=======
-        $additional_embed_head_tags[] = '<script src="' . plugins_url( "wp-h5p-xapi-embed-settings.js.php", __FILE__) . '" type="text/javascript"></script>';
->>>>>>> Stashed changes
         $additional_embed_head_tags[] = '<script src="' . plugins_url() . "/wp-h5p-xapi/wp-h5p-xapi.js" . '" type="text/javascript"></script>';
     }
 
