@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.2.3
+ * Version:           0.2.4
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -43,6 +43,8 @@ class WiscH5PLTI {
         self::GRADING_SCHEME_FIRST,
         self::GRADING_SCHEME_LAST
     );
+
+    const DEBUG_LOG = FALSE;
 
     private static $wisch5plti_options_by_blog_id = array();
     private static $learning_locker_settings = array();
@@ -381,6 +383,7 @@ class WiscH5PLTI {
     }
 
     public static function wisc_h5p_cron_function() {
+        $starting_blog_id = get_current_blog_id();
         $sites = get_sites();
         foreach ($sites as $site) {
             // Is auto-sync enabled?
@@ -392,6 +395,8 @@ class WiscH5PLTI {
                 self::sync_all_grades($site->blog_id);
             }
         }
+        WiscH5PLTI::write_log( "wisc_h5p_cron_function | After running, current blog id = '" . get_current_blog_id() . "', resetting to starting blog id = '$starting_blog_id'");
+        switch_to_blog($starting_blog_id);
     }
 
 
@@ -502,7 +507,9 @@ class WiscH5PLTI {
     }
     
     public static function sync_grades_for_post($blog_id, $post_id, $h5p_ids, $since, $until, $grading_scheme) {
+        WiscH5PLTI::write_log("sync_grades_for_post | blog_id='$blog_id', post_id='$post_id', h5p_ids='" . join(',', $h5p_ids) . "', grading_scheme='$grading_scheme'");
         $statements = LearningLockerInterface::get_h5p_statements($blog_id, $h5p_ids, $since, $until);
+        WiscH5PLTI::write_log("sync_grades_for_post | # of statements = " . count($statements));
         return self::process_and_sync_statements($statements, $blog_id, $post_id, $grading_scheme);
     }
 
@@ -726,17 +733,15 @@ class WiscH5PLTI {
         }
         return $h5p_ids;
     }
-    
-}
 
-//if (!function_exists('write_log')) {
-//    function write_log ( $log )  {
-//        if ( true === WP_DEBUG ) {
-//            if ( is_array( $log ) || is_object( $log ) ) {
-//                error_log( print_r( $log, true ) );
-//            } else {
-//                error_log( $log );
-//            }
-//        }
-//    }
-//}
+    public static function write_log( $log ) {
+        if ( true === WP_DEBUG && true === WiscH5PLTI::DEBUG_LOG ) {
+            if ( is_array( $log ) || is_object( $log ) ) {
+                error_log( print_r( $log, true ) );
+            } else {
+                error_log( $log );
+            }
+        }
+    }
+
+}

@@ -16,6 +16,8 @@ class LearningLockerInterface {
 
     const STATEMENT_LIMIT_PER_REQUEST = 200;
 
+    private static $activity_url_prefixes_by_blog_id = array();
+
     private static function get_since_arg($since = null) {
         return is_null($since) ? '' : '&since=' . $since->format('Y-m-d') . 'T00:00:00.0000000Z';
     }
@@ -53,12 +55,12 @@ class LearningLockerInterface {
         return self::$request_url_format;
     }
 
-    private static $activity_url_prefix;
     private static function get_activity_url_prefix() {
-        if (empty(self::$activity_url_prefix)) {
-            self::$activity_url_prefix = urlencode(get_site_url() . "/wp-admin/admin-ajax.php?action=h5p_embed&id=");
+        $blog_id = get_current_blog_id();
+        if ( ! isset( self::$activity_url_prefixes_by_blog_id[$blog_id] ) ) {
+            self::$activity_url_prefixes_by_blog_id[$blog_id] = urlencode(get_site_url() . "/wp-admin/admin-ajax.php?action=h5p_embed&id=");
         }
-        return self::$activity_url_prefix;
+        return self::$activity_url_prefixes_by_blog_id[$blog_id];
     }
 
     /**
@@ -98,8 +100,10 @@ class LearningLockerInterface {
         $all_statements = array();
         foreach($h5p_ids as $h5p_id) {
             $request_url = self::get_request_url(self::VERB_COMPLETED, $h5p_id, $since_arg, $until_arg);
+            WiscH5PLTI::write_log("sync_grades_for_post | completed: request_url='$request_url'");
             self::get_h5p_statements_helper($request_url, $more_base_url, $curl_options, $all_statements);
             $request_url = self::get_request_url(self::VERB_ANSWERED, $h5p_id, $since_arg, $until_arg);
+            WiscH5PLTI::write_log("sync_grades_for_post | answered: request_url='$request_url'");
             self::get_h5p_statements_helper($request_url, $more_base_url, $curl_options, $all_statements);
         }
         return $all_statements;
@@ -113,7 +117,7 @@ class LearningLockerInterface {
      * @throws ErrorException
      */
     private static function get_h5p_statements_helper($request_url, $more_base_url, $curl_options, &$statements) {
-
+        
         // Initialize
         $ch = curl_init($request_url);
         if ($ch === FALSE) {
