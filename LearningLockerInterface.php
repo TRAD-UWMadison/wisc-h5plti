@@ -22,7 +22,7 @@ class LearningLockerInterface {
         return is_null($since) ? '' : '&since=' . $since->format('Y-m-d') . 'T00:00:00.0000000Z';
     }
     private static function get_until_arg($until = null) {
-        return is_null($until) ? '' : '&until=' . $until->format('Y-m-d') . 'T00:00:00.0000000Z';
+        return is_null($until) ? '' : '&until=' . $until->format('Y-m-d') . 'T23:59:59.9999999Z';
     }
 
     /**

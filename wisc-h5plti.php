@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.2.4
+ * Version:           0.2.5
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 include_once plugin_dir_path( __FILE__ ) . 'H5PGradeSyncError.php';
 include_once plugin_dir_path( __FILE__ ) . 'H5PGradeSyncLog.php';
-include_once 'LearningLockerInterface.php';
+include_once 'LearningLockerInterface.php';                                                 
 
 // Do our necessary plugin setup and add_action routines.
 WiscH5PLTI::setup();
@@ -282,6 +282,7 @@ class WiscH5PLTI {
     public static function on_activate() {
         wp_clear_scheduled_hook( self::WISC_H5P_CRON_HOOK );
     }
+    
     public static function on_deactivate() {
         wp_clear_scheduled_hook( self::WISC_H5P_CRON_HOOK );
     }

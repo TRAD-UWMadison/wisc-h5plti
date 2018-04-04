@@ -36,7 +36,7 @@
             success: syncGradesSuccess,
             error: syncGradesError,
             complete: syncGradesComplete,
-            url: ajaxurl
+            url: chapterGradeSync.ajaxURL
         });
         // Update the button
         $button.val("Sending Grades...");
