@@ -1,0 +1,16 @@
+{
+    "name": "pressbooks/wisc-h5plti",
+    "description": "Used to capture h5p events and send scores back through LTI.",
+    "homepage": "https://github.com/TRAD-UWMadison/wisc-h5plti/",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "UW-Madison",
+            "homepage": "https://github.com/TRAD-UWMadison"
+        }
+    ],
+    "type": "wordpress-plugin",
+    "require": {
+        "composer/installers": "^1.2"
+    }
+}
