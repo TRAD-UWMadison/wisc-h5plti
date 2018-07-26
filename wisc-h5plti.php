@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.2.6
+ * Version:           0.2.7
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -94,17 +94,20 @@ class WiscH5PLTI {
 
     public static function h5pxapi_h5p_embed_additional_scripts(&$additional_embed_head_tags) {
         $additional_embed_head_tags[] = '<script src="' . includes_url()."/js/jquery/jquery.js" . '" type="text/javascript"></script>';
+
+        $title = wp_title("|", false);
+
         $additional_embed_head_tags[] = '
             <script type="text/javascript">
-                WP_H5P_XAPI_STATEMENT_URL = "' . plugins_url() . '/wp-h5p-xapi/process-xapi-statement.php";
-                WP_H5P_XAPI_CONTEXTACTIVITY = {
-                    id: window.location.href,
-                    definition: {
-                        type: "http://activitystrea.ms/schema/1.0/page",
-                        name: {
-                            en: ""
-                        },
-                        moreInfo: window.location.href
+                xapi_settings = {
+                    "ajax_url": "' . admin_url('admin-ajax.php') . '",
+                    "context_activity": {
+                        "id": window.location.href,
+                        "definition": {
+                            "type": "http://activitystrea.ms/schema/1.0/page",
+                            "name": { "en": "' . $title . '" },
+                            "moreInfo": window.location.href
+                        }
                     }
                 };
             </script>';
