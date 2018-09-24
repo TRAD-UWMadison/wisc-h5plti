@@ -3,7 +3,7 @@
  * @wordpress-plugin
  * Plugin Name:       Wisc H5P LTI Outcomes
  * Description:       Used to capture h5p events and send scores back through LTI
- * Version:           0.2.7
+ * Version:           0.2.8
  * Author:            UW-Madison
  * Author URI:
  * Text Domain:       lti
@@ -71,6 +71,7 @@ class WiscH5PLTI {
         // Cron
         add_filter('cron_schedules', array(__CLASS__, 'custom_cron_schedule'));
         if ( ! wp_next_scheduled( self::WISC_H5P_CRON_HOOK ) ) {
+            self::write_log('scheduling the cron hook event');
             wp_schedule_event( time(), self::WISC_H5P_CRON_SCHEDULE, self::WISC_H5P_CRON_HOOK);
         }
         add_action( self::WISC_H5P_CRON_HOOK, array( __CLASS__, 'wisc_h5p_cron_function' ) );
@@ -226,7 +227,7 @@ class WiscH5PLTI {
 
     public static function save_chapter_grade_sync_meta_box($post_id) {
         // verify nonce
-        if ( !wp_verify_nonce( $_POST['chapter_grade_sync_meta_box_nonce'], basename(__FILE__) ) ) {
+        if ( ! wp_verify_nonce( self::safe_get_post( 'chapter_grade_sync_meta_box_nonce' ), basename(__FILE__) ) ) {
             return $post_id;
         }
         // check autosave
@@ -234,7 +235,7 @@ class WiscH5PLTI {
             return $post_id;
         }
         // check permissions
-        if ( 'chapter' === $_POST['post_type'] ) {
+        if ( 'chapter' === WiscH5PLTI::safe_get_post( 'post_type' ) ) {
             if ( !current_user_can( 'edit_page', $post_id ) ) {
                 return $post_id;
             } elseif ( !current_user_can( 'edit_post', $post_id ) ) {
@@ -248,10 +249,10 @@ class WiscH5PLTI {
             delete_post_meta($post_id, self::META_KEY_AUTO_SYNC_VALIDATION_ERROR, $auto_sync_validation_error);
         }
 
-        $auto_sync_enabled = isset($_POST['chapter_grade_sync_auto_sync_enabled']) && $_POST['chapter_grade_sync_auto_sync_enabled'] == "true" ? true : false;
+        $auto_sync_enabled = WiscH5PLTI::safe_get_post( 'chapter_grade_sync_auto_sync_enabled' ) == "true";
         if ($auto_sync_enabled) {
             // Validate the rest of the fields
-            $chapter_grade_sync_fields = $_POST['chapter_grade_sync_fields'];
+            $chapter_grade_sync_fields = WiscH5PLTI::safe_get_post( 'chapter_grade_sync_fields' );
             $grading_scheme =   isset($chapter_grade_sync_fields['grading_scheme']) ? $chapter_grade_sync_fields['grading_scheme'] : null;
             $h5p_ids_string =   isset($chapter_grade_sync_fields['h5p_ids_string']) ? $chapter_grade_sync_fields['h5p_ids_string'] : null;
             $since =            isset($chapter_grade_sync_fields['since']) ? $chapter_grade_sync_fields['since'] : null;
@@ -274,7 +275,7 @@ class WiscH5PLTI {
         }
 
         $old = get_post_meta( $post_id, 'chapter_grade_sync_fields', true );
-        $new = $_POST['chapter_grade_sync_fields'];
+        $new = WiscH5PLTI::safe_get_post( 'chapter_grade_sync_fields' );
 
         if ( $new && $new !== $old ) {
             update_post_meta( $post_id, 'chapter_grade_sync_fields', $new );
@@ -387,8 +388,9 @@ class WiscH5PLTI {
 
     // WordPress: Cron -------------------------------------------------------------------------------------------------
 
-    public static function custom_cron_schedule($schedules) {
-        if ( !isset( $schedules[self::WISC_H5P_CRON_SCHEDULE] )
+    public static function custom_cron_schedule( $schedules ) {
+
+        if ( ! isset( $schedules[self::WISC_H5P_CRON_SCHEDULE] )
             || $schedules[self::WISC_H5P_CRON_SCHEDULE]['interval'] != self::WISC_H5P_CRON_INTERVAL
             || $schedules[self::WISC_H5P_CRON_SCHEDULE]['display'] != __(self::WISC_H5P_CRON_DISPLAY) ) {
             $schedules[self::WISC_H5P_CRON_SCHEDULE] = array(
@@ -400,22 +402,16 @@ class WiscH5PLTI {
     }
 
     public static function wisc_h5p_cron_function() {
-        $starting_blog_id = get_current_blog_id();
-        $sites = get_sites();
-        foreach ($sites as $site) {
-            // Is auto-sync enabled?
-            switch_to_blog($site->blog_id);
-            $wisch5plti_options = self::get_wisch5plti_options($site->blog_id);
-            if ( isset( $wisch5plti_options[self::SETTINGS_FIELD_AUTO_GRADE_SYNC_ENABLED] ) &&
-                 $wisch5plti_options[self::SETTINGS_FIELD_AUTO_GRADE_SYNC_ENABLED] == "1" ) {
-                // It's enabled.  Run the auto-sync for the blog
-                self::sync_all_grades($site->blog_id);
-            }
-        }
-        WiscH5PLTI::write_log( "wisc_h5p_cron_function | After running, current blog id = '" . get_current_blog_id() . "', resetting to starting blog id = '$starting_blog_id'");
-        switch_to_blog($starting_blog_id);
-    }
 
+        WiscH5PLTI::write_log(__CLASS__ . " | " . __FUNCTION__ . " | current_blog_id = '" . get_current_blog_id() . "'");
+        $wisch5plti_options = self::get_wisch5plti_options();
+        if ( isset( $wisch5plti_options[self::SETTINGS_FIELD_AUTO_GRADE_SYNC_ENABLED] ) &&
+            $wisch5plti_options[self::SETTINGS_FIELD_AUTO_GRADE_SYNC_ENABLED] == "1" ) {
+            // It's enabled.  Run the auto-sync for the blog
+            self::sync_all_grades();
+        }
+
+    }
 
 
     // Plugin Functionality --------------------------------------------------------------------------------------------
@@ -459,8 +455,9 @@ class WiscH5PLTI {
         return self::$learning_locker_settings[$settings_blog_id];
     }
 
-    public static function sync_all_grades($blog_id) {
-        switch_to_blog($blog_id);
+    public static function sync_all_grades() {
+        $blog_id = get_current_blog_id();
+        $start = time();
         $args = array(
             'post_type' => 'chapter',
             'meta_key' => 'chapter_grade_sync_auto_sync_enabled',
@@ -507,10 +504,15 @@ class WiscH5PLTI {
                 $log_string .= "<td>Error reported: <br />" . $report->error . "</td>";
                 // Create a stand-alone error record too
                 H5PGradeSyncError::create_error($post->post_title, $post->ID, $since->format(self::DATETIME_FORMAT), $until->format(self::DATETIME_FORMAT), $grading_scheme, $h5p_ids_string, array($report->error), false);
+            } else {
+                $log_string .= "<td>&nbsp;</td>";
             }
             $log_string .= "</tr>";
         }
-        $log_string .= "</table>";
+        $log_string .= "</table><br />";
+        $end = time();
+        $time_diff = $end - $start;
+        $log_string .= "Process completed in $time_diff second(s).";
         $datetime = new DateTime();
         $datetime->setTimezone(new DateTimeZone('America/Chicago'));
         $log_title = $datetime->format("Y-m-d H:i:s");
@@ -579,7 +581,14 @@ class WiscH5PLTI {
 
         foreach($user_data as $user => $info) {
             $userScore = 0;
-            $userId = get_user_by("login", $user);
+            $wp_user = get_user_by( "login", $user );
+            if ( false == $wp_user ) {
+                $wp_user = get_user_by( 'email', $user );
+                if ( false == $wp_user ) {
+                    WiscH5PLTI::write_log(__CLASS__ . " + " . __FUNCTION__ . " | failed to find user where '$user' is username or email");
+                    continue;
+                }
+            }
 
             foreach($info as $object => $object_statements){
 
@@ -637,7 +646,7 @@ class WiscH5PLTI {
             $user_data[$user]['totalScore'] = $userScore;
             $percentScore =  floatval($userScore/$max_total_grade);
             $user_data[$user]['percentScore'] = $percentScore;
-            do_action('lti_outcome', $percentScore , $userId->ID, $post_id, $blog_id);
+            do_action('lti_outcome', $percentScore , $wp_user->ID, $post_id, $blog_id);
 
         }
 
@@ -649,19 +658,19 @@ class WiscH5PLTI {
 
     public static function edit_screen_grade_sync() {
 
-        $ajax_nonce =       isset($_POST['ajaxNonce']) ? $_POST['ajaxNonce'] : null;
+        $ajax_nonce =       WiscH5PLTI::safe_get_post( 'ajaxNonce' );
 
         if (wp_verify_nonce($ajax_nonce, self::EDIT_SCREEN_GRADE_SYNC_ACTION) === FALSE) {
             self::edit_screen_grade_sync_return_error("Invalid token, please refresh and resubmit.");
             return;
         }
 
-        $blog_id =          isset($_POST['blogID']) ? $_POST['blogID'] : null;
-        $grading_scheme =   isset($_POST['gradingScheme']) ? $_POST['gradingScheme'] : null;
-        $h5p_ids_string =   isset($_POST['h5pIDsString']) ? $_POST['h5pIDsString'] : null;
-        $post_id =          isset($_POST['postID']) ? $_POST['postID'] : null;
-        $since =            isset($_POST['since']) ? $_POST['since'] : null;
-        $until =            isset($_POST['until']) ? $_POST['until'] : null;
+        $blog_id =          WiscH5PLTI::safe_get_post( 'blogID' );
+        $grading_scheme =   WiscH5PLTI::safe_get_post( 'gradingScheme' );
+        $h5p_ids_string =   WiscH5PLTI::safe_get_post( 'h5pIDsString' );
+        $post_id =          WiscH5PLTI::safe_get_post( 'postID' );
+        $since =            WiscH5PLTI::safe_get_post( 'since' );
+        $until =            WiscH5PLTI::safe_get_post( 'until' );
 
         $result = self::validate_chapter_grade_sync_fields($grading_scheme, $h5p_ids_string, $since, $until);
 
@@ -759,6 +768,13 @@ class WiscH5PLTI {
                 error_log( $log );
             }
         }
+    }
+
+    public static function safe_get_array_value($key, &$array, $default = null ) {
+        return array_key_exists( $key, $array ) ? $array[$key] : $default;
+    }
+    public static function safe_get_post( $param, $default = null ) {
+        return array_key_exists( $param, $_POST ) ? $_POST[$param] : $default;
     }
 
 }
